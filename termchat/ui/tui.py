@@ -5,6 +5,7 @@ from textual.widgets import Footer, RichLog
 
 from termchat.app import MessageBus
 from termchat.domain.message import Message
+from termchat.ui.emoji_render import EmojiImageCache, detect_image_protocol, render_run
 
 _PLATFORM_COLORS: dict[str, str] = {
     "twitch": "medium_purple",
@@ -26,6 +27,8 @@ class TermchatApp(App[None]):
         super().__init__()
         self._bus = bus
         self._queue = queue
+        self._protocol = detect_image_protocol()
+        self._emoji_cache = EmojiImageCache() if self._protocol != "none" else None
 
     def compose(self) -> ComposeResult:
         yield RichLog(highlight=True, markup=True, wrap=True)
@@ -43,7 +46,15 @@ class TermchatApp(App[None]):
             color = _PLATFORM_COLORS.get(msg.platform, "white")
             platform_tag = f"[bold {color}][{msg.platform}][/bold {color}]"
             author = msg.author.ljust(_AUTHOR_WIDTH)[:_AUTHOR_WIDTH]
-            log.write(f"{platform_tag} [cyan]{author}[/cyan] {msg.text}")
+            body = self._render_body(msg)
+            log.write(f"{platform_tag} [cyan]{author}[/cyan] {body}")
+
+    def _render_body(self, msg: Message) -> str:
+        if not msg.runs or self._emoji_cache is None:
+            return msg.text
+        return "".join(render_run(r, self._protocol, self._emoji_cache) for r in msg.runs)
 
     async def on_unmount(self) -> None:
         self._bus_task.cancel()
+        if self._emoji_cache is not None:
+            await self._emoji_cache.aclose()

@@ -8,9 +8,9 @@ _Last synced to commit `6247b72`._
 
 **termchat** is an async, read-only terminal multi-chat aggregator written in Python. It reads live chat from multiple streaming platforms simultaneously and displays them in a terminal UI.
 
-Planned integrations:
+Integrations:
 - **Twitch** — IRC reader
-- **YouTube** — `yt-dlp` library
+- **YouTube** — `chat-downloader` library (true live-chat tail)
 
 The architecture must support adding more providers later.
 
@@ -29,9 +29,9 @@ The project follows **Clean Architecture** with strict layer separation:
 
 ```
 termchat/
-  providers/      # Message source adapters (Twitch IRC, YouTube via yt-dlp, fake)
-  domain/         # Core entities (Message dataclass, Provider Protocol)
-  ui/             # Presentation layer (stdout TerminalUI, Textual TermchatApp)
+  providers/      # Message source adapters (Twitch IRC, YouTube via chat-downloader, fake)
+  domain/         # Core entities (Message dataclass with structured runs, Provider Protocol)
+  ui/             # Presentation layer (stdout TerminalUI, Textual TermchatApp, emoji_render)
   app.py          # MessageBus: fan-in of providers into a shared asyncio.Queue
   config.py       # tomllib loader for ~/.config/termchat/config.toml
   __main__.py     # CLI entry point: argparse, signal handlers, UI selection, shutdown
@@ -50,13 +50,17 @@ termchat/
 ## UI backends
 
 Two implementations share the same `asyncio.Queue[Message]` contract:
-- Default — `ui/terminal.py::TerminalUI`: plain stdout, `[platform] author: text`.
-- `--tui` — `ui/tui.py::TermchatApp`: Textual `RichLog`, color-coded per platform (`_PLATFORM_COLORS`), drains the queue on a 0.1s interval. The bus runs as a task owned by the Textual app in this mode.
+- Default — `ui/terminal.py::TerminalUI`: plain stdout, `[platform] author: text`. Emoji shortcuts (`:smile:`) ride in `msg.text` as-is.
+- `--tui` — `ui/tui.py::TermchatApp`: Textual `RichLog`, color-coded per platform (`_PLATFORM_COLORS`), drains the queue on a 0.1s interval. The bus runs as a task owned by the Textual app in this mode. Uses `ui/emoji_render.py` to render `EmojiRun`s inline: in Kitty (`KITTY_WINDOW_ID` / `TERM=xterm-kitty`) or iTerm2/WezTerm (`TERM_PROGRAM`), emoji images are emitted as inline-image escape sequences after their PNGs are fetched and cached; elsewhere they fall back to `:shortcut:` text. The first occurrence of an emoji image falls back to shortcut while the cache warms; subsequent occurrences render as images.
+
+## Message structure
+
+`Message` carries both a flat `text` (the canonical plain form, with custom emoji rendered as `:shortcut:` and Unicode emoji glyphs inline) and a structured `runs: tuple[MessageRun, ...]` where each `MessageRun` is either a `TextRun` or `EmojiRun(shortcut, image_url, is_custom)`. `runs` defaults to `()` — providers that don't supply structure (`FakeProvider`, `TwitchProvider`) leave it empty and the TUI falls back to `msg.text`.
 
 ## Providers — gotchas
 
 - **`TwitchProvider`**: raw `asyncio.open_connection` to `irc.chat.twitch.tv:6667`. When `TWITCH_OAUTH` is empty it logs in anonymously as `justinfan<rand>` — no creds required to read public channels. Handles `PING`/`PONG`. `parse_privmsg()` is exposed separately so it can be unit-tested with raw IRC fixtures.
-- **`YouTubeProvider`**: takes a channel handle (e.g. `somechannel` or `@somechannel`) and resolves it to `https://www.youtube.com/@<channel>/live` — i.e. the channel's currently-active live broadcast. yt-dlp is then called with `getcomments=True` on that resolved URL; this is **not** a true live-chat tail and will yield nothing if no broadcast is live. `live_url` is exposed as a property for testing.
+- **`YouTubeProvider`**: takes a channel handle (e.g. `somechannel` or `@somechannel`) and resolves it to `https://www.youtube.com/@<channel>/live`. Tails real live chat via `chat_downloader.ChatDownloader().get_chat(url)`, whose synchronous iterator is bridged to asyncio with `run_in_executor` per `next()`. Each yielded dict carries a flat `message` string (shortcuts inlined) plus an `emotes` list without positional info; `_tokenize` splits `message` against the union of emote names to reconstruct an ordered `runs` tuple. The iterator ends naturally when the broadcast stops. `live_url` is exposed as a property for testing.
 - Both providers expose a `from_env()` classmethod (`TWITCH_CHANNEL`/`TWITCH_OAUTH`, `YOUTUBE_CHANNEL`) used by integration tests.
 - `FakeProvider` is the standard test double for orchestration/UI tests.
 
