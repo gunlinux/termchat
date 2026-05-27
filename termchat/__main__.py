@@ -65,8 +65,7 @@ async def _run(args: argparse.Namespace) -> None:
         import os
         from termchat.providers.twitch import TwitchProvider
 
-        oauth = os.environ.get("TWITCH_OAUTH", "")
-        providers.append(TwitchProvider(args.twitch, oauth))
+        providers.append(TwitchProvider(args.twitch, os.environ.get("TWITCH_OAUTH", "")))
 
     if args.youtube:
         from termchat.providers.youtube import YouTubeProvider

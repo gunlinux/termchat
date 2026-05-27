@@ -8,7 +8,7 @@ from termchat.providers.twitch import parse_privmsg, TwitchProvider
 
 def test_parse_privmsg_basic():
     line = ":johndoe!johndoe@johndoe.tmi.twitch.tv PRIVMSG #channel :Hello world"
-    msg = parse_privmsg(line, "channel")
+    msg = parse_privmsg(line)
     assert msg is not None
     assert msg.author == "johndoe"
     assert msg.text == "Hello world"
@@ -17,32 +17,32 @@ def test_parse_privmsg_basic():
 
 def test_parse_privmsg_with_crlf():
     line = ":alice!alice@alice.tmi.twitch.tv PRIVMSG #stream :PogChamp\r\n"
-    msg = parse_privmsg(line, "stream")
+    msg = parse_privmsg(line)
     assert msg is not None
     assert msg.text == "PogChamp"
 
 
 def test_parse_privmsg_non_privmsg_returns_none():
     line = ":tmi.twitch.tv 001 justinfan1234 :Welcome, GLHF!"
-    assert parse_privmsg(line, "channel") is None
+    assert parse_privmsg(line) is None
 
 
 def test_parse_privmsg_ping_returns_none():
     line = "PING :tmi.twitch.tv"
-    assert parse_privmsg(line, "channel") is None
+    assert parse_privmsg(line) is None
 
 
 def test_parse_privmsg_colon_in_text():
     line = ":bob!bob@bob.tmi.twitch.tv PRIVMSG #chat :http://example.com rocks"
-    msg = parse_privmsg(line, "chat")
+    msg = parse_privmsg(line)
     assert msg is not None
     assert msg.text == "http://example.com rocks"
 
 
 def test_parse_privmsg_has_unique_ids():
     line = ":user!user@user.tmi.twitch.tv PRIVMSG #ch :hi"
-    m1 = parse_privmsg(line, "ch")
-    m2 = parse_privmsg(line, "ch")
+    m1 = parse_privmsg(line)
+    m2 = parse_privmsg(line)
     assert m1 is not None and m2 is not None
     assert m1.id != m2.id
 

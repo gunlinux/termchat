@@ -1,5 +1,6 @@
 import asyncio
 import os
+import random
 import re
 import uuid
 from datetime import datetime, timezone
@@ -14,7 +15,7 @@ _HOST = "irc.chat.twitch.tv"
 _PORT = 6667
 
 
-def parse_privmsg(line: str, channel: str) -> Message | None:
+def parse_privmsg(line: str) -> Message | None:
     m = _PRIVMSG_RE.match(line)
     if not m:
         return None
@@ -28,21 +29,28 @@ def parse_privmsg(line: str, channel: str) -> Message | None:
 
 
 class TwitchProvider:
-    def __init__(self, channel: str, oauth_token: str) -> None:
+    def __init__(self, channel: str, oauth_token: str = "") -> None:
         self._channel = channel.lstrip("#")
         self._oauth = oauth_token
 
     @classmethod
     def from_env(cls) -> "TwitchProvider":
         channel = os.environ["TWITCH_CHANNEL"]
-        oauth = os.environ["TWITCH_OAUTH"]
+        oauth = os.environ.get("TWITCH_OAUTH", "")
         return cls(channel, oauth)
 
     async def messages(self) -> AsyncIterator[Message]:
         reader, writer = await asyncio.open_connection(_HOST, _PORT)
         try:
-            writer.write(f"PASS oauth:{self._oauth}\r\n".encode())
-            writer.write(f"NICK {self._channel}\r\n".encode())
+            if self._oauth:
+                nick = self._channel
+                password = f"oauth:{self._oauth}"
+            else:
+                # anonymous read-only connection — no OAuth required
+                nick = f"justinfan{random.randint(10000, 99999)}"
+                password = "SCHMOOZE"
+            writer.write(f"PASS {password}\r\n".encode())
+            writer.write(f"NICK {nick}\r\n".encode())
             writer.write(f"JOIN #{self._channel}\r\n".encode())
             await writer.drain()
 
@@ -57,7 +65,7 @@ class TwitchProvider:
                     await writer.drain()
                     continue
 
-                msg = parse_privmsg(line, self._channel)
+                msg = parse_privmsg(line)
                 if msg:
                     yield msg
         finally:
