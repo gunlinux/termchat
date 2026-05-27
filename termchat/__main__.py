@@ -122,9 +122,20 @@ async def _run(args: argparse.Namespace) -> None:
     _print_summary(bus)
 
 
+def _apply_config(args: argparse.Namespace) -> None:
+    from termchat.config import load_config
+
+    cfg = load_config()
+    if not args.twitch and cfg.get("twitch", {}).get("channel"):
+        args.twitch = cfg["twitch"]["channel"]
+    if not args.youtube and cfg.get("youtube", {}).get("url"):
+        args.youtube = cfg["youtube"]["url"]
+
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+    _apply_config(args)
 
     if not args.twitch and not args.youtube and not args.demo:
         parser.error("at least one of --twitch, --youtube, or --demo is required")
