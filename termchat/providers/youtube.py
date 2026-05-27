@@ -33,12 +33,16 @@ def _map_entry(entry: dict[str, Any]) -> Message | None:
 
 
 class YouTubeProvider:
-    def __init__(self, url: str) -> None:
-        self._url = url
+    def __init__(self, channel: str) -> None:
+        self._channel = channel.lstrip("@")
 
     @classmethod
     def from_env(cls) -> "YouTubeProvider":
-        return cls(os.environ["YOUTUBE_URL"])
+        return cls(os.environ["YOUTUBE_CHANNEL"])
+
+    @property
+    def live_url(self) -> str:
+        return f"https://www.youtube.com/@{self._channel}/live"
 
     async def messages(self) -> AsyncIterator[Message]:
         loop = asyncio.get_running_loop()
@@ -58,5 +62,5 @@ class YouTubeProvider:
             "skip_download": True,
         }
         with YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(self._url, download=False) or {}
+            info = ydl.extract_info(self.live_url, download=False) or {}
         return info.get("comments") or []

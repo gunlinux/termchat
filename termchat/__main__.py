@@ -19,8 +19,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--youtube",
-        metavar="URL",
-        help="YouTube live stream or video URL",
+        metavar="CHANNEL",
+        help="YouTube channel handle (resolves to its active live stream)",
     )
     parser.add_argument(
         "--tui",
@@ -127,8 +127,8 @@ def _apply_config(args: argparse.Namespace) -> None:
     cfg = load_config()
     if not args.twitch and cfg.get("twitch", {}).get("channel"):
         args.twitch = cfg["twitch"]["channel"]
-    if not args.youtube and cfg.get("youtube", {}).get("url"):
-        args.youtube = cfg["youtube"]["url"]
+    if not args.youtube and cfg.get("youtube", {}).get("channel"):
+        args.youtube = cfg["youtube"]["channel"]
 
 
 def main() -> None:

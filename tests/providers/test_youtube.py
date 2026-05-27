@@ -60,7 +60,7 @@ async def test_youtube_provider_maps_entries():
         {"id": "2", "author": "bob", "text": "", "timestamp": None},
         {"id": "3", "author": "carol", "text": "Hi", "timestamp": None},
     ]
-    provider = YouTubeProvider("https://youtube.com/watch?v=fake")
+    provider = YouTubeProvider("somechannel")
     with patch.object(provider, "_extract_comments", return_value=entries):
         msgs = [m async for m in provider.messages()]
 
@@ -69,11 +69,19 @@ async def test_youtube_provider_maps_entries():
     assert msgs[1].author == "carol"
 
 
+def test_youtube_live_url_builds_from_channel():
+    assert YouTubeProvider("somechannel").live_url == "https://www.youtube.com/@somechannel/live"
+
+
+def test_youtube_live_url_strips_leading_at():
+    assert YouTubeProvider("@somechannel").live_url == "https://www.youtube.com/@somechannel/live"
+
+
 # --- integration test: requires env var ---
 
 @pytest.mark.skipif(
-    not os.getenv("YOUTUBE_URL"),
-    reason="YOUTUBE_URL not set",
+    not os.getenv("YOUTUBE_CHANNEL"),
+    reason="YOUTUBE_CHANNEL not set",
 )
 async def test_youtube_integration():
     provider = YouTubeProvider.from_env()
