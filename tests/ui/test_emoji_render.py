@@ -149,8 +149,54 @@ async def test_cache_fetch_failure_does_not_crash():
     cache = EmojiImageCache(client=client)
     url = "https://x/a.png"
     cache.get(url)
-    await asyncio.sleep(0)  # let task run
-    # in_flight cleared even on failure
+    await asyncio.sleep(0)
     assert url not in cache._in_flight
     assert url not in cache._data
+    await cache.aclose()
+
+
+# --- Pillow conversion ---
+
+def _make_gif_bytes() -> bytes:
+    """Return raw bytes of a 1x1 GIF, encoded by Pillow."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    img = Image.new("RGBA", (1, 1), (255, 0, 0, 255))
+    buf = BytesIO()
+    img.save(buf, format="GIF")
+    return buf.getvalue()
+
+
+class _BytesTransport(httpx.AsyncBaseTransport):
+    def __init__(self, payload: bytes) -> None:
+        self._payload = payload
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=self._payload)
+
+
+async def test_cache_converts_gif_to_png():
+    gif = _make_gif_bytes()
+    assert gif[:3] == b"GIF"
+    client = httpx.AsyncClient(transport=_BytesTransport(gif))
+    cache = EmojiImageCache(client=client)
+    url = "https://x/a.gif"
+    cache.get(url)
+    await cache._in_flight[url]
+    stored = cache.get(url)
+    assert stored is not None
+    assert stored.startswith(b"\x89PNG")
+    await cache.aclose()
+
+
+async def test_cache_undecodable_bytes_fall_through_unchanged():
+    payload = b"not a real image"
+    client = httpx.AsyncClient(transport=_BytesTransport(payload))
+    cache = EmojiImageCache(client=client)
+    url = "https://x/bad"
+    cache.get(url)
+    await cache._in_flight[url]
+    assert cache.get(url) == payload
     await cache.aclose()

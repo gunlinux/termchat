@@ -11,6 +11,7 @@ import asyncio
 import base64
 import os
 from collections import OrderedDict
+from io import BytesIO
 from typing import Literal
 
 import httpx
@@ -65,7 +66,7 @@ class EmojiImageCache:
                 self._client = httpx.AsyncClient(timeout=10.0)
             resp = await self._client.get(url)
             resp.raise_for_status()
-            self._data[url] = resp.content
+            self._data[url] = _to_png_first_frame(resp.content)
             self._data.move_to_end(url)
             while len(self._data) > self._capacity:
                 self._data.popitem(last=False)
@@ -96,6 +97,25 @@ def render_run(
     if protocol == "kitty":
         return _kitty_escape(data)
     return _iterm2_escape(data)
+
+
+def _to_png_first_frame(data: bytes) -> bytes:
+    """Decode any image (PNG/GIF/WebP/AVIF) and re-encode the first frame as PNG.
+
+    Kitty's `f=100` and iTerm2 inline images both render PNG reliably; animated
+    or non-PNG inputs are normalized here so the downstream renderer is uniform.
+    Falls through to the original bytes on any decode failure.
+    """
+    try:
+        from PIL import Image
+
+        img = Image.open(BytesIO(data))
+        img.seek(0)
+        buf = BytesIO()
+        img.convert("RGBA").save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception:
+        return data
 
 
 def _kitty_escape(data: bytes) -> str:

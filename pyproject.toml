@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "chat-downloader>=0.2.8",
     "httpx>=0.27",
+    "pillow>=10",
     "textual>=8.2.7",
     "yt-dlp>=2026.3.17",
 ]
