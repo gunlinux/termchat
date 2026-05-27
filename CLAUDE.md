@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-_Last synced to commit `4a92d7b`._
+_Last synced to commit `6247b72`._
 
 ## Project Overview
 
