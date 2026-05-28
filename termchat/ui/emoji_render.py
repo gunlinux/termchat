@@ -24,7 +24,9 @@ from termchat.domain.message import EmojiRun, MessageRun, TextRun
 Protocol = Literal["kitty", "iterm2", "none"]
 
 
-def detect_image_protocol(env: os._Environ[str] | dict[str, str] | None = None) -> Protocol:
+def detect_image_protocol(
+    env: os._Environ[str] | dict[str, str] | None = None,
+) -> Protocol:
     env = os.environ if env is None else env
     if env.get("KITTY_WINDOW_ID") or env.get("TERM") == "xterm-kitty":
         return "kitty"
@@ -229,7 +231,9 @@ def _kitty_escape(data: bytes) -> str:
     # via the TTY input channel and the shell echoes the response bytes back to
     # the screen as visible garbage.
     payload = base64.standard_b64encode(data).decode("ascii")
-    chunks = [payload[i : i + _KITTY_CHUNK] for i in range(0, len(payload), _KITTY_CHUNK)]
+    chunks = [
+        payload[i : i + _KITTY_CHUNK] for i in range(0, len(payload), _KITTY_CHUNK)
+    ]
     if not chunks:
         chunks = [""]
     if len(chunks) == 1:
@@ -244,6 +248,5 @@ def _kitty_escape(data: bytes) -> str:
 def _iterm2_escape(data: bytes) -> str:
     payload = base64.standard_b64encode(data).decode("ascii")
     return (
-        "\x1b]1337;File=inline=1;width=2;height=1;preserveAspectRatio=1:"
-        f"{payload}\x07"
+        f"\x1b]1337;File=inline=1;width=2;height=1;preserveAspectRatio=1:{payload}\x07"
     )

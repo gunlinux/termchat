@@ -18,6 +18,7 @@ from termchat.providers.twitch_emotes import EmoteInfo, TwitchEmoteRegistry
 
 # --- bare PRIVMSG (backward compat) ---
 
+
 def test_parse_privmsg_basic():
     line = ":johndoe!johndoe@johndoe.tmi.twitch.tv PRIVMSG #channel :Hello world"
     msg = parse_privmsg(line)
@@ -61,6 +62,7 @@ def test_parse_privmsg_has_unique_ids():
 
 # --- IRCv3 tag parsing ---
 
+
 def test_parse_tags_simple():
     assert parse_tags("color=#FF0000;display-name=Alice") == {
         "color": "#FF0000",
@@ -89,6 +91,7 @@ def test_unescape_tag_value_unknown_escape_keeps_char():
 
 # --- emotes= tag parsing ---
 
+
 def test_parse_emotes_tag_single():
     assert parse_emotes_tag("25:0-4") == [("25", 0, 4)]
 
@@ -115,6 +118,7 @@ def test_parse_emotes_tag_malformed_skipped():
 
 # --- parse_roomstate ---
 
+
 def test_parse_roomstate_returns_room_id():
     line = "@emote-only=0;room-id=12345;slow=0 :tmi.twitch.tv ROOMSTATE #channel"
     assert parse_roomstate(line) == "12345"
@@ -125,6 +129,7 @@ def test_parse_roomstate_returns_none_for_non_roomstate():
 
 
 # --- runs construction ---
+
 
 def test_build_runs_native_only():
     text = "Kappa hi Kappa"
@@ -210,6 +215,7 @@ def test_build_runs_native_wins_over_3p_collision():
 
 # --- tagged PRIVMSG end-to-end ---
 
+
 def test_parse_privmsg_with_tags_uses_display_name():
     line = (
         "@badge-info=;color=#FF0000;display-name=Alice;emotes=;id=abc-1;room-id=99 "
@@ -240,6 +246,7 @@ def test_parse_privmsg_with_emotes_produces_runs():
 
 
 # --- reconnect behavior ---
+
 
 class _FakeReader:
     """Async stream reader stub. `lines` queue feeds readline()."""
@@ -338,6 +345,7 @@ async def test_reconnects_after_read_timeout(monkeypatch):
                 async def readline(self):
                     await asyncio.sleep(3600)
                     return b""
+
             return _HangReader(), _FakeWriter()
         # Second session: deliver a message
         line = b":bob!bob@bob.tmi.twitch.tv PRIVMSG #ch :after-reconnect\r\n"
@@ -413,6 +421,7 @@ async def test_backoff_resets_after_successful_message(monkeypatch):
 
 
 # --- integration test: requires env vars ---
+
 
 @pytest.mark.skipif(
     not (os.getenv("TWITCH_CHANNEL") and os.getenv("TWITCH_OAUTH")),

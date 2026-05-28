@@ -5,10 +5,15 @@ from textual.widgets import Footer, RichLog
 
 from termchat.app import MessageBus
 from termchat.domain.message import Message
-from termchat.ui.emoji_render import EmojiImageCache, detect_image_protocol, render_run
+from termchat.ui.emoji_render import (
+    EmojiImageCache,
+    Protocol,
+    detect_image_protocol,
+    render_run,
+)
 
 _PLATFORM_ICONS: dict[str, str] = {
-    "twitch": "",   # Nerd Font nf-fa-twitch
+    "twitch": "",  # Nerd Font nf-fa-twitch
     "youtube": "",  # Nerd Font nf-fa-youtube
     "fake": "◉",
     "system": "⚙",
@@ -22,7 +27,7 @@ _PLATFORM_COLORS: dict[str, str] = {
 }
 
 _AUTHOR_COLORS: dict[str, str] = {
-    "twitch": "#b04fdd",   # rgb(176, 79, 221)
+    "twitch": "#b04fdd",  # rgb(176, 79, 221)
     "youtube": "#ff69b4",  # pink
     "fake": "green",
     "system": "dark_orange",
@@ -43,7 +48,7 @@ class TermchatApp(App[None]):
         super().__init__()
         self._bus = bus
         self._queue = queue
-        self._protocol = detect_image_protocol()
+        self._protocol: Protocol = detect_image_protocol()
         self._emoji_cache = EmojiImageCache() if self._protocol != "none" else None
 
     def compose(self) -> ComposeResult:
@@ -65,12 +70,16 @@ class TermchatApp(App[None]):
             platform_tag = f"[bold {color}]{icon}[/bold {color}]"
             author = msg.author.ljust(_AUTHOR_WIDTH)[:_AUTHOR_WIDTH]
             body = self._render_body(msg)
-            log.write(f"{platform_tag} [bold {author_color}]{author}[/bold {author_color}] {body}")
+            log.write(
+                f"{platform_tag} [bold {author_color}]{author}[/bold {author_color}] {body}"
+            )
 
     def _render_body(self, msg: Message) -> str:
         if not msg.runs or self._emoji_cache is None:
             return msg.text
-        return "".join(render_run(r, self._protocol, self._emoji_cache) for r in msg.runs)
+        return "".join(
+            render_run(r, self._protocol, self._emoji_cache) for r in msg.runs
+        )
 
     async def on_unmount(self) -> None:
         self._bus_task.cancel()

@@ -6,6 +6,7 @@ from termchat.providers.twitch_emotes import EmoteInfo, TwitchEmoteRegistry
 
 # --- tokenize ---
 
+
 def test_tokenize_empty_returns_empty():
     r = TwitchEmoteRegistry()
     assert r.tokenize("") == ()
@@ -68,28 +69,36 @@ def test_tokenize_preserves_leading_trailing_whitespace():
 
 # --- precedence ---
 
+
 def test_priority_channel_over_global():
     r = TwitchEmoteRegistry()
     r._add(EmoteInfo(name="X", image_url="global", source="bttv-global"))
     r._add(EmoteInfo(name="X", image_url="channel", source="bttv-channel"))
-    assert r.lookup("X").image_url == "channel"
+    info = r.lookup("X")
+    assert info is not None
+    assert info.image_url == "channel"
 
 
 def test_priority_global_does_not_override_channel():
     r = TwitchEmoteRegistry()
     r._add(EmoteInfo(name="X", image_url="channel", source="bttv-channel"))
     r._add(EmoteInfo(name="X", image_url="global", source="bttv-global"))
-    assert r.lookup("X").image_url == "channel"
+    info = r.lookup("X")
+    assert info is not None
+    assert info.image_url == "channel"
 
 
 def test_priority_bttv_channel_over_7tv_channel():
     r = TwitchEmoteRegistry()
     r._add(EmoteInfo(name="X", image_url="7tv", source="7tv-channel"))
     r._add(EmoteInfo(name="X", image_url="bttv", source="bttv-channel"))
-    assert r.lookup("X").image_url == "bttv"
+    info = r.lookup("X")
+    assert info is not None
+    assert info.image_url == "bttv"
 
 
 # --- HTTP loading shapes ---
+
 
 class _RecordingTransport(httpx.AsyncBaseTransport):
     def __init__(self, responses: dict[str, object]) -> None:
@@ -105,12 +114,14 @@ class _RecordingTransport(httpx.AsyncBaseTransport):
 
 
 async def test_load_global_hits_bttv_global_endpoint():
-    transport = _RecordingTransport({
-        "https://api.betterttv.net/3/cached/emotes/global": [
-            {"id": "abc", "code": "GlobeRound", "imageType": "png"},
-            {"id": "def", "code": "GlobeSpin", "imageType": "gif"},
-        ]
-    })
+    transport = _RecordingTransport(
+        {
+            "https://api.betterttv.net/3/cached/emotes/global": [
+                {"id": "abc", "code": "GlobeRound", "imageType": "png"},
+                {"id": "def", "code": "GlobeSpin", "imageType": "gif"},
+            ]
+        }
+    )
     client = httpx.AsyncClient(transport=transport)
     r = TwitchEmoteRegistry(client=client)
     await r.load_global()
@@ -125,32 +136,32 @@ async def test_load_global_hits_bttv_global_endpoint():
 
 async def test_load_channel_hits_bttv_7tv_and_twitch_gql():
     room_id = "12345"
-    transport = _RecordingTransport({
-        f"https://api.betterttv.net/3/cached/users/twitch/{room_id}": {
-            "channelEmotes": [{"id": "ch1", "code": "ChanEmote"}],
-            "sharedEmotes": [{"id": "sh1", "code": "SharedEmote"}],
-        },
-        f"https://7tv.io/v3/users/twitch/{room_id}": {
-            "emote_set": {
-                "emotes": [{"id": "stv1", "name": "PepoG"}]
-            }
-        },
-        "https://gql.twitch.tv/gql": {
-            "data": {
-                "user": {
-                    "subscriptionProducts": [
-                        {"emotes": [{"id": "sub1", "token": "chanSub"}]},
-                        {"emotes": []},
-                    ],
-                    "channel": {
-                        "localEmoteSets": [
-                            {"emotes": [{"id": "local1", "token": "chanLocal"}]}
-                        ]
-                    },
+    transport = _RecordingTransport(
+        {
+            f"https://api.betterttv.net/3/cached/users/twitch/{room_id}": {
+                "channelEmotes": [{"id": "ch1", "code": "ChanEmote"}],
+                "sharedEmotes": [{"id": "sh1", "code": "SharedEmote"}],
+            },
+            f"https://7tv.io/v3/users/twitch/{room_id}": {
+                "emote_set": {"emotes": [{"id": "stv1", "name": "PepoG"}]}
+            },
+            "https://gql.twitch.tv/gql": {
+                "data": {
+                    "user": {
+                        "subscriptionProducts": [
+                            {"emotes": [{"id": "sub1", "token": "chanSub"}]},
+                            {"emotes": []},
+                        ],
+                        "channel": {
+                            "localEmoteSets": [
+                                {"emotes": [{"id": "local1", "token": "chanLocal"}]}
+                            ]
+                        },
+                    }
                 }
-            }
-        },
-    })
+            },
+        }
+    )
     client = httpx.AsyncClient(transport=transport)
     r = TwitchEmoteRegistry(client=client)
     await r.load_channel(room_id)
@@ -176,8 +187,7 @@ async def test_load_channel_hits_bttv_7tv_and_twitch_gql():
         source="twitch-channel",
     )
     assert (
-        f"https://api.betterttv.net/3/cached/users/twitch/{room_id}"
-        in transport.calls
+        f"https://api.betterttv.net/3/cached/users/twitch/{room_id}" in transport.calls
     )
     assert f"https://7tv.io/v3/users/twitch/{room_id}" in transport.calls
     assert "https://gql.twitch.tv/gql" in transport.calls
@@ -186,17 +196,25 @@ async def test_load_channel_hits_bttv_7tv_and_twitch_gql():
 
 async def test_twitch_channel_emotes_win_collisions_over_3p():
     room_id = "12345"
-    transport = _RecordingTransport({
-        f"https://api.betterttv.net/3/cached/users/twitch/{room_id}": {
-            "channelEmotes": [{"id": "bttv1", "code": "collide"}],
-        },
-        f"https://7tv.io/v3/users/twitch/{room_id}": {},
-        "https://gql.twitch.tv/gql": {
-            "data": {"user": {"channel": {"localEmoteSets": [
-                {"emotes": [{"id": "twid", "token": "collide"}]}
-            ]}}}
-        },
-    })
+    transport = _RecordingTransport(
+        {
+            f"https://api.betterttv.net/3/cached/users/twitch/{room_id}": {
+                "channelEmotes": [{"id": "bttv1", "code": "collide"}],
+            },
+            f"https://7tv.io/v3/users/twitch/{room_id}": {},
+            "https://gql.twitch.tv/gql": {
+                "data": {
+                    "user": {
+                        "channel": {
+                            "localEmoteSets": [
+                                {"emotes": [{"id": "twid", "token": "collide"}]}
+                            ]
+                        }
+                    }
+                }
+            },
+        }
+    )
     client = httpx.AsyncClient(transport=transport)
     r = TwitchEmoteRegistry(client=client)
     await r.load_channel(room_id)
@@ -227,7 +245,10 @@ async def test_load_channel_partial_failure_keeps_other_source():
                 raise httpx.ConnectError("7tv down")
             return httpx.Response(
                 200,
-                json={"channelEmotes": [{"id": "x", "code": "OnlyBTTV"}], "sharedEmotes": []},
+                json={
+                    "channelEmotes": [{"id": "x", "code": "OnlyBTTV"}],
+                    "sharedEmotes": [],
+                },
             )
 
     client = httpx.AsyncClient(transport=_Mixed())

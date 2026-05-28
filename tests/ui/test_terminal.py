@@ -69,8 +69,9 @@ async def test_terminal_ui_falls_back_to_shortcuts_when_no_image_protocol():
     await queue.put(msg)
 
     output = StringIO()
-    with patch.dict("os.environ", {"TERM": "xterm-256color"}, clear=True), patch(
-        "sys.stdout", output
+    with (
+        patch.dict("os.environ", {"TERM": "xterm-256color"}, clear=True),
+        patch("sys.stdout", output),
     ):
         ui = TerminalUI(queue)
         await _drain(ui, queue)
@@ -95,8 +96,9 @@ async def test_terminal_ui_emits_kitty_escape_when_cache_warm():
     await queue.put(msg)
 
     output = StringIO()
-    with patch.dict("os.environ", {"TERM": "xterm-kitty"}, clear=True), patch(
-        "sys.stdout", output
+    with (
+        patch.dict("os.environ", {"TERM": "xterm-kitty"}, clear=True),
+        patch("sys.stdout", output),
     ):
         ui = TerminalUI(queue)
         # Pre-warm cache so the first render emits the image escape directly
@@ -149,8 +151,9 @@ async def test_terminal_ui_waits_for_emote_fetch_before_printing():
     await queue.put(msg)
 
     output = StringIO()
-    with patch.dict("os.environ", {"TERM": "xterm-kitty"}, clear=True), patch(
-        "sys.stdout", output
+    with (
+        patch.dict("os.environ", {"TERM": "xterm-kitty"}, clear=True),
+        patch("sys.stdout", output),
     ):
         ui = TerminalUI(queue)
         ui._cache = cache  # inject our gated cache

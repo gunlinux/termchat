@@ -55,8 +55,13 @@ async def _run(args: argparse.Namespace) -> None:
         from termchat.providers.fake import FakeProvider
 
         fake_msgs = [
-            Msg(id=str(i), author="demo_user", text=f"Demo message {i}",
-                timestamp=datetime.now(timezone.utc), platform="fake")
+            Msg(
+                id=str(i),
+                author="demo_user",
+                text=f"Demo message {i}",
+                timestamp=datetime.now(timezone.utc),
+                platform="fake",
+            )
             for i in range(10)
         ]
         providers.append(FakeProvider(fake_msgs, delay=0.3))
@@ -65,7 +70,9 @@ async def _run(args: argparse.Namespace) -> None:
         import os
         from termchat.providers.twitch import TwitchProvider
 
-        providers.append(TwitchProvider(args.twitch, os.environ.get("TWITCH_OAUTH", "")))
+        providers.append(
+            TwitchProvider(args.twitch, os.environ.get("TWITCH_OAUTH", ""))
+        )
 
     if args.youtube:
         from termchat.providers.youtube import YouTubeProvider

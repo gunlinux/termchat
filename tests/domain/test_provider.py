@@ -1,12 +1,12 @@
 from datetime import datetime, timezone
-from typing import AsyncIterator
+from typing import AsyncGenerator
 
 from termchat.domain.message import Message
 from termchat.domain.provider import Provider
 
 
 class _ConcreteProvider:
-    async def messages(self) -> AsyncIterator[Message]:
+    async def messages(self) -> AsyncGenerator[Message, None]:
         ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
         yield Message(id="1", author="a", text="hi", timestamp=ts, platform="test")
 

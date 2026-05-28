@@ -8,11 +8,24 @@ import time
 import urllib.request
 import uuid
 from datetime import datetime, timezone
-from typing import Any, AsyncGenerator, Iterator
+from typing import Any, AsyncGenerator, Iterator, Protocol
 
 import httpx
 
 from termchat.domain.message import EmojiRun, Message, MessageRun, TextRun
+
+
+class _HTTPClient(Protocol):
+    """Minimal synchronous HTTP client surface the poller depends on.
+
+    `httpx.Client` satisfies this structurally; tests pass a lightweight fake.
+    """
+
+    def get(self, url: str) -> Any: ...
+
+    def post(self, url: str, *, json: Any = ...) -> Any: ...
+
+    def close(self) -> None: ...
 
 
 def _largest_image_url(images: list[dict[str, Any]] | None) -> str | None:
@@ -21,7 +34,9 @@ def _largest_image_url(images: list[dict[str, Any]] | None) -> str | None:
     sized = [img for img in images if img.get("url")]
     if not sized:
         return None
-    sized.sort(key=lambda img: (img.get("width") or 0) * (img.get("height") or 0), reverse=True)
+    sized.sort(
+        key=lambda img: (img.get("width") or 0) * (img.get("height") or 0), reverse=True
+    )
     return sized[0]["url"]
 
 
@@ -109,9 +124,9 @@ def _next_or_none(it: Iterator[dict[str, Any]]) -> dict[str, Any] | None:
 
 _YT_INITIAL_DATA_RE = (
     r'(?:window\s*\[\s*["\']ytInitialData["\']\s*\]|ytInitialData)\s*=\s*'
-    r'({.+?})\s*;\s*(?:var\s+(?:meta|head)|</script|\n)'
+    r"({.+?})\s*;\s*(?:var\s+(?:meta|head)|</script|\n)"
 )
-_YT_CFG_RE = r'ytcfg\.set\s*\(\s*({.+?})\s*\)\s*;'
+_YT_CFG_RE = r"ytcfg\.set\s*\(\s*({.+?})\s*\)\s*;"
 _DEFAULT_UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -145,7 +160,9 @@ def _walk(obj: Any, key: str) -> Any:
     return None
 
 
-def _extract_continuation(continuations: list[dict[str, Any]]) -> tuple[str | None, float]:
+def _extract_continuation(
+    continuations: list[dict[str, Any]],
+) -> tuple[str | None, float]:
     if not continuations:
         return None, 0.0
     cont = continuations[0]
@@ -284,7 +301,7 @@ class _YouTubeLiveChatPoller:
         self,
         watch_url: str,
         *,
-        client: httpx.Client | None = None,
+        client: _HTTPClient | None = None,
         sleep: Any = None,
         stop: threading.Event | None = None,
     ) -> None:
@@ -337,14 +354,14 @@ class _YouTubeLiveChatPoller:
             if owns_client:
                 client.close()
 
-    def _fetch_watch(self, client: httpx.Client) -> str:
+    def _fetch_watch(self, client: _HTTPClient) -> str:
         resp = client.get(self._watch_url)
         resp.raise_for_status()
         return resp.text
 
     def _post_chat(
         self,
-        client: httpx.Client,
+        client: _HTTPClient,
         api_url: str,
         ctx: dict[str, Any],
         continuation: str,
@@ -393,7 +410,9 @@ class YouTubeProvider:
         startup_time = datetime.now(timezone.utc)
         try:
             try:
-                chat = await loop.run_in_executor(executor, lambda: self._open_chat(stop))
+                chat = await loop.run_in_executor(
+                    executor, lambda: self._open_chat(stop)
+                )
             except Exception as e:
                 yield _system_msg(f"[youtube] failed to open chat: {e}")
                 return
@@ -415,26 +434,32 @@ class YouTubeProvider:
     def _resolve_video_url(self) -> str | None:
         req = urllib.request.Request(
             self.live_url,
-            headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"},
+            headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
+            },
         )
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
-                m = re.search(r'[?&]v=([A-Za-z0-9_-]{11})', resp.url)
+                m = re.search(r"[?&]v=([A-Za-z0-9_-]{11})", resp.url)
                 if m:
                     return f"https://www.youtube.com/watch?v={m.group(1)}"
                 html = resp.read().decode("utf-8", errors="ignore")
         except Exception:
             return None
 
-        m = re.search(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', html)
+        m = re.search(
+            r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', html
+        )
         if m and "watch?v=" in m.group(1):
-            vid = re.search(r'[?&]v=([A-Za-z0-9_-]{11})', m.group(1))
+            vid = re.search(r"[?&]v=([A-Za-z0-9_-]{11})", m.group(1))
             if vid:
                 return f"https://www.youtube.com/watch?v={vid.group(1)}"
 
-        m = re.search(r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\']([^"\']+)["\']', html)
+        m = re.search(
+            r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\']([^"\']+)["\']', html
+        )
         if m and "watch?v=" in m.group(1):
-            vid = re.search(r'[?&]v=([A-Za-z0-9_-]{11})', m.group(1))
+            vid = re.search(r"[?&]v=([A-Za-z0-9_-]{11})", m.group(1))
             if vid:
                 return f"https://www.youtube.com/watch?v={vid.group(1)}"
 

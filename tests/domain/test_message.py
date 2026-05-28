@@ -53,9 +53,15 @@ def test_message_runs_default_empty():
 def test_message_runs_round_trip():
     runs: tuple[TextRun | EmojiRun, ...] = (
         TextRun(text="hi "),
-        EmojiRun(shortcut=":smile:", image_url="https://example/smile.png", is_custom=False),
+        EmojiRun(
+            shortcut=":smile:", image_url="https://example/smile.png", is_custom=False
+        ),
         TextRun(text=" "),
-        EmojiRun(shortcut=":_custom_:", image_url="https://example/custom.png", is_custom=True),
+        EmojiRun(
+            shortcut=":_custom_:",
+            image_url="https://example/custom.png",
+            is_custom=True,
+        ),
     )
     msg = Message(
         id="x",

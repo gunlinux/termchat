@@ -76,7 +76,9 @@ class TwitchEmoteRegistry:
                     runs.append(TextRun(text=buf))
                     buf = ""
                 runs.append(
-                    EmojiRun(shortcut=info.name, image_url=info.image_url, is_custom=True)
+                    EmojiRun(
+                        shortcut=info.name, image_url=info.image_url, is_custom=True
+                    )
                 )
             else:
                 buf += part
@@ -147,7 +149,9 @@ class TwitchEmoteRegistry:
             resp = await client.get(url)
             resp.raise_for_status()
             data = resp.json() or {}
-            for entry in (data.get("channelEmotes") or []) + (data.get("sharedEmotes") or []):
+            for entry in (data.get("channelEmotes") or []) + (
+                data.get("sharedEmotes") or []
+            ):
                 self._ingest_bttv(entry, source="bttv-channel")
         except Exception:
             pass

@@ -4,5 +4,4 @@ from termchat.domain.message import Message
 
 
 class Provider(Protocol):
-    def messages(self) -> AsyncGenerator[Message, None]:
-        ...
+    def messages(self) -> AsyncGenerator[Message, None]: ...

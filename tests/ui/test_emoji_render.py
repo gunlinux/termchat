@@ -13,6 +13,7 @@ from termchat.ui.emoji_render import (
 
 # --- detect_image_protocol ---
 
+
 def test_detect_kitty_via_window_id():
     assert detect_image_protocol({"KITTY_WINDOW_ID": "1"}) == "kitty"
 
@@ -34,6 +35,7 @@ def test_detect_none_for_plain_xterm():
 
 
 # --- render_run ---
+
 
 def test_render_text_run_passes_through():
     assert render_run(TextRun(text="hello"), "kitty", None) == "hello"
@@ -77,8 +79,8 @@ def test_kitty_escape_chunks_large_payload():
     # enough bytes to force >1 chunk (each chunk ≤ _KITTY_CHUNK base64 chars)
     big_data = b"X" * ((_KITTY_CHUNK * 3 // 4) + 1)
     out = _kitty_escape(big_data)
-    assert "\x1b_Gf=100" in out          # first chunk has metadata
-    assert "m=1;" in out                  # at least one intermediate chunk
+    assert "\x1b_Gf=100" in out  # first chunk has metadata
+    assert "m=1;" in out  # at least one intermediate chunk
     assert out.endswith("\x1b\\")
 
 
@@ -102,6 +104,7 @@ async def test_render_emoji_iterm2_escape_when_cached():
 
 
 # --- EmojiImageCache ---
+
 
 class _StubTransport(httpx.AsyncBaseTransport):
     def __init__(self) -> None:
@@ -182,6 +185,7 @@ async def test_cache_fetch_failure_does_not_crash():
 
 # --- Pillow conversion ---
 
+
 def _make_gif_bytes() -> bytes:
     """Return raw bytes of a 1x1 GIF, encoded by Pillow."""
     from io import BytesIO
@@ -228,6 +232,7 @@ async def test_cache_undecodable_bytes_fall_through_unchanged():
 
 
 # --- prefetch ---
+
 
 async def test_prefetch_blocks_until_all_urls_cached():
     transport = _StubTransport()
@@ -299,6 +304,7 @@ async def test_prefetch_returns_even_when_fetch_fails():
 
 # --- disk cache ---
 
+
 class _CountingTransport(httpx.AsyncBaseTransport):
     def __init__(self, payload: bytes) -> None:
         self._payload = payload
@@ -323,6 +329,7 @@ async def test_disk_cache_writes_png_on_first_fetch(tmp_path):
     files = list(tmp_path.iterdir())
     assert len(files) == 1
     import hashlib
+
     assert files[0].name == hashlib.sha1(url.encode()).hexdigest()
     assert files[0].read_bytes().startswith(b"\x89PNG")
     await cache.aclose()
@@ -368,9 +375,11 @@ async def test_disk_cache_expired_entry_refetched_from_network(tmp_path):
     cache.get(url)
     await cache._in_flight[url]
 
-    assert transport.calls == 1                       # forced network refresh
-    assert cache.get(url).startswith(b"\x89PNG")      # fresh PNG cached
-    assert path.read_bytes().startswith(b"\x89PNG")   # disk file was replaced
+    assert transport.calls == 1  # forced network refresh
+    refreshed = cache.get(url)
+    assert refreshed is not None
+    assert refreshed.startswith(b"\x89PNG")  # fresh PNG cached
+    assert path.read_bytes().startswith(b"\x89PNG")  # disk file was replaced
     await cache.aclose()
 
 
@@ -405,7 +414,9 @@ async def test_disk_cache_mkdir_failure_degrades_to_memory_only(tmp_path):
 
     cache.get("https://x/a.gif")
     await cache._in_flight["https://x/a.gif"]
-    assert cache.get("https://x/a.gif").startswith(b"\x89PNG")
+    fetched = cache.get("https://x/a.gif")
+    assert fetched is not None
+    assert fetched.startswith(b"\x89PNG")
     await cache.aclose()
 
 

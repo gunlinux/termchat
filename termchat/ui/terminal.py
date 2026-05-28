@@ -4,13 +4,14 @@ import sys
 from termchat.domain.message import EmojiRun, Message
 from termchat.ui.emoji_render import (
     EmojiImageCache,
+    Protocol,
     default_disk_cache_dir,
     detect_image_protocol,
     render_run,
 )
 
 _PLATFORM_ICONS: dict[str, str] = {
-    "twitch": "",   # Nerd Font nf-fa-twitch
+    "twitch": "",  # Nerd Font nf-fa-twitch
     "youtube": "",  # Nerd Font nf-fa-youtube
     "fake": "◉",
     "system": "⚙",
@@ -41,7 +42,7 @@ class TerminalUI:
         # detect_image_protocol checks env vars for Kitty / iTerm2 / WezTerm.
         # In an unsupported terminal `_protocol == "none"` and runs collapse
         # back to their `:shortcut:` text — same output as before.
-        self._protocol = detect_image_protocol()
+        self._protocol: Protocol = detect_image_protocol()
         self._cache: EmojiImageCache | None = (
             EmojiImageCache(cache_dir=default_disk_cache_dir())
             if self._protocol != "none"

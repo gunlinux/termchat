@@ -12,9 +12,7 @@ from termchat.providers.twitch_emotes import TwitchEmoteRegistry
 _PRIVMSG_RE = re.compile(
     r"^(?:@(?P<tags>[^ ]*) )?:(?P<nick>[^!]+)![^ ]+ PRIVMSG #[^ ]+ :(?P<text>.+)$"
 )
-_ROOMSTATE_RE = re.compile(
-    r"^@(?P<tags>[^ ]*) :tmi\.twitch\.tv ROOMSTATE #[^ ]+\s*$"
-)
+_ROOMSTATE_RE = re.compile(r"^@(?P<tags>[^ ]*) :tmi\.twitch\.tv ROOMSTATE #[^ ]+\s*$")
 _TAG_ESCAPES = {":": ";", "s": " ", "\\": "\\", "r": "\r", "n": "\n"}
 _HOST = "irc.chat.twitch.tv"
 _PORT = 6667

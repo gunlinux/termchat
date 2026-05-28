@@ -8,6 +8,7 @@ from termchat.providers.fake import FakeProvider
 
 class _ErrorProvider:
     """Provider that raises immediately on iteration."""
+
     def __init__(self, error: Exception) -> None:
         self._error = error
 
@@ -71,7 +72,9 @@ async def test_message_bus_interleaved_delays():
 async def test_failing_provider_does_not_kill_other_providers():
     good_msgs = [_msg(i, "good") for i in range(2)]
     queue: asyncio.Queue[Message] = asyncio.Queue()
-    bus = MessageBus([_ErrorProvider(RuntimeError("boom")), FakeProvider(good_msgs)], queue)
+    bus = MessageBus(
+        [_ErrorProvider(RuntimeError("boom")), FakeProvider(good_msgs)], queue
+    )
     await bus.run()  # must not raise
     collected = []
     while not queue.empty():

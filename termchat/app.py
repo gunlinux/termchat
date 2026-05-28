@@ -7,7 +7,9 @@ from termchat.domain.provider import Provider
 
 
 class MessageBus:
-    def __init__(self, providers: list[Provider], queue: asyncio.Queue[Message]) -> None:
+    def __init__(
+        self, providers: list[Provider], queue: asyncio.Queue[Message]
+    ) -> None:
         self._providers = providers
         self._queue = queue
         self._counts: dict[str, int] = {}
@@ -28,12 +30,14 @@ class MessageBus:
                 self._counts[msg.platform] = self._counts.get(msg.platform, 0) + 1
                 await self._queue.put(msg)
         except Exception as e:
-            await self._queue.put(Message(
-                id=str(uuid.uuid4()),
-                author="system",
-                text=f"[{type(provider).__name__}] error: {e}",
-                timestamp=datetime.now(timezone.utc),
-                platform="system",
-            ))
+            await self._queue.put(
+                Message(
+                    id=str(uuid.uuid4()),
+                    author="system",
+                    text=f"[{type(provider).__name__}] error: {e}",
+                    timestamp=datetime.now(timezone.utc),
+                    platform="system",
+                )
+            )
         finally:
             await gen.aclose()

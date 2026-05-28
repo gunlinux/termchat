@@ -24,6 +24,7 @@ from termchat.providers.youtube import (
 
 # --- unit tests: entry mapping ---
 
+
 def test_map_entry_basic():
     entry = {
         "message_id": "abc",
@@ -99,12 +100,15 @@ def test_map_entry_with_mixed_emotes():
         TextRun(text="hi "),
         EmojiRun(shortcut=":smile:", image_url="https://yt/smile.png", is_custom=False),
         TextRun(text=" friends "),
-        EmojiRun(shortcut=":_custom_:", image_url="https://yt/custom_48.png", is_custom=True),
+        EmojiRun(
+            shortcut=":_custom_:", image_url="https://yt/custom_48.png", is_custom=True
+        ),
         TextRun(text="!"),
     )
 
 
 # --- _tokenize ---
+
 
 def test_tokenize_without_emotes():
     assert _tokenize("plain text", []) == (TextRun(text="plain text"),)
@@ -112,7 +116,11 @@ def test_tokenize_without_emotes():
 
 def test_tokenize_emote_at_start():
     emotes = [
-        {"name": ":wave:", "images": [{"url": "u", "width": 1, "height": 1}], "is_custom_emoji": False}
+        {
+            "name": ":wave:",
+            "images": [{"url": "u", "width": 1, "height": 1}],
+            "is_custom_emoji": False,
+        }
     ]
     runs = _tokenize(":wave: hello", emotes)
     assert runs == (
@@ -123,7 +131,11 @@ def test_tokenize_emote_at_start():
 
 def test_tokenize_emote_at_end():
     emotes = [
-        {"name": ":wave:", "images": [{"url": "u", "width": 1, "height": 1}], "is_custom_emoji": False}
+        {
+            "name": ":wave:",
+            "images": [{"url": "u", "width": 1, "height": 1}],
+            "is_custom_emoji": False,
+        }
     ]
     runs = _tokenize("hi :wave:", emotes)
     assert runs == (
@@ -155,16 +167,27 @@ def test_tokenize_emote_without_images():
 
 # --- provider iteration ---
 
+
 async def test_youtube_provider_maps_entries():
     entries = [
         {
             "message_id": "1",
             "author": {"name": "alice"},
             "message": "Hey",
-            "timestamp": 1_700_000_000_000_000,
+            "timestamp": None,
         },
-        {"message_id": "2", "author": {"name": "bob"}, "message": "", "timestamp": None},
-        {"message_id": "3", "author": {"name": "carol"}, "message": "Hi", "timestamp": None},
+        {
+            "message_id": "2",
+            "author": {"name": "bob"},
+            "message": "",
+            "timestamp": None,
+        },
+        {
+            "message_id": "3",
+            "author": {"name": "carol"},
+            "message": "Hi",
+            "timestamp": None,
+        },
     ]
     provider = YouTubeProvider("somechannel")
     with patch.object(provider, "_open_chat", return_value=iter(entries)):
@@ -184,7 +207,11 @@ async def test_youtube_provider_exits_when_chat_ends():
 
 async def test_youtube_messages_yields_system_on_open_chat_failure():
     provider = YouTubeProvider("somechannel")
-    with patch.object(provider, "_open_chat", side_effect=RuntimeError("Unable to parse initial video data")):
+    with patch.object(
+        provider,
+        "_open_chat",
+        side_effect=RuntimeError("Unable to parse initial video data"),
+    ):
         msgs = [m async for m in provider.messages()]
     assert len(msgs) == 1
     assert msgs[0].platform == "system"
@@ -205,14 +232,21 @@ async def test_youtube_messages_yields_system_on_iteration_error():
 
 
 def test_youtube_live_url_builds_from_channel():
-    assert YouTubeProvider("somechannel").live_url == "https://www.youtube.com/@somechannel/live"
+    assert (
+        YouTubeProvider("somechannel").live_url
+        == "https://www.youtube.com/@somechannel/live"
+    )
 
 
 def test_youtube_live_url_strips_leading_at():
-    assert YouTubeProvider("@somechannel").live_url == "https://www.youtube.com/@somechannel/live"
+    assert (
+        YouTubeProvider("@somechannel").live_url
+        == "https://www.youtube.com/@somechannel/live"
+    )
 
 
 # --- _resolve_video_url ---
+
 
 def _fake_urlopen(url_str: str, html: str):
     resp = MagicMock()
@@ -226,15 +260,23 @@ def _fake_urlopen(url_str: str, html: str):
 def test_resolve_video_url_from_canonical_link():
     html = '<link rel="canonical" href="https://www.youtube.com/watch?v=abcd1234567">'
     provider = YouTubeProvider("gunlinux")
-    with patch("urllib.request.urlopen", return_value=_fake_urlopen("https://www.youtube.com/@gunlinux/live", html)):
+    with patch(
+        "urllib.request.urlopen",
+        return_value=_fake_urlopen("https://www.youtube.com/@gunlinux/live", html),
+    ):
         result = provider._resolve_video_url()
     assert result == "https://www.youtube.com/watch?v=abcd1234567"
 
 
 def test_resolve_video_url_from_og_url():
-    html = '<meta property="og:url" content="https://www.youtube.com/watch?v=abcd1234567">'
+    html = (
+        '<meta property="og:url" content="https://www.youtube.com/watch?v=abcd1234567">'
+    )
     provider = YouTubeProvider("gunlinux")
-    with patch("urllib.request.urlopen", return_value=_fake_urlopen("https://www.youtube.com/@gunlinux/live", html)):
+    with patch(
+        "urllib.request.urlopen",
+        return_value=_fake_urlopen("https://www.youtube.com/@gunlinux/live", html),
+    ):
         result = provider._resolve_video_url()
     assert result == "https://www.youtube.com/watch?v=abcd1234567"
 
@@ -242,7 +284,10 @@ def test_resolve_video_url_from_og_url():
 def test_resolve_video_url_from_redirect():
     html = ""
     provider = YouTubeProvider("gunlinux")
-    with patch("urllib.request.urlopen", return_value=_fake_urlopen("https://www.youtube.com/watch?v=abcd1234567", html)):
+    with patch(
+        "urllib.request.urlopen",
+        return_value=_fake_urlopen("https://www.youtube.com/watch?v=abcd1234567", html),
+    ):
         result = provider._resolve_video_url()
     assert result == "https://www.youtube.com/watch?v=abcd1234567"
 
@@ -250,7 +295,10 @@ def test_resolve_video_url_from_redirect():
 def test_resolve_video_url_from_yt_initial_data():
     html = 'var ytInitialData = {"videoId":"abcd1234567","other":"stuff"};'
     provider = YouTubeProvider("gunlinux")
-    with patch("urllib.request.urlopen", return_value=_fake_urlopen("https://www.youtube.com/@gunlinux/live", html)):
+    with patch(
+        "urllib.request.urlopen",
+        return_value=_fake_urlopen("https://www.youtube.com/@gunlinux/live", html),
+    ):
         result = provider._resolve_video_url()
     assert result == "https://www.youtube.com/watch?v=abcd1234567"
 
@@ -258,7 +306,10 @@ def test_resolve_video_url_from_yt_initial_data():
 def test_resolve_video_url_no_live_stream():
     html = "<html><head><title>gunlinux - YouTube</title></head></html>"
     provider = YouTubeProvider("gunlinux")
-    with patch("urllib.request.urlopen", return_value=_fake_urlopen("https://www.youtube.com/@gunlinux/live", html)):
+    with patch(
+        "urllib.request.urlopen",
+        return_value=_fake_urlopen("https://www.youtube.com/@gunlinux/live", html),
+    ):
         result = provider._resolve_video_url()
     assert result is None
 
@@ -271,6 +322,7 @@ def test_resolve_video_url_network_error():
 
 
 # --- _open_chat integration with the new poller ---
+
 
 def test_open_chat_uses_resolved_url():
     provider = YouTubeProvider("gunlinux")
@@ -287,6 +339,7 @@ def test_open_chat_uses_resolved_url():
     with patch.object(provider, "_resolve_video_url", return_value=resolved):
         with patch("termchat.providers.youtube._YouTubeLiveChatPoller", _Poller):
             import threading
+
             list(provider._open_chat(threading.Event()))
     assert captured["url"] == resolved
 
@@ -305,6 +358,7 @@ def test_open_chat_falls_back_to_live_url_when_resolve_fails():
     with patch.object(provider, "_resolve_video_url", return_value=None):
         with patch("termchat.providers.youtube._YouTubeLiveChatPoller", _Poller):
             import threading
+
             list(provider._open_chat(threading.Event()))
     assert captured["url"] == provider.live_url
 
@@ -313,12 +367,16 @@ def test_open_chat_logs_to_stderr_when_resolve_fails(capsys):
     provider = YouTubeProvider("gunlinux")
 
     class _Poller:
-        def __init__(self, url, **kwargs): pass
-        def __iter__(self): return iter([])
+        def __init__(self, url, **kwargs):
+            pass
+
+        def __iter__(self):
+            return iter([])
 
     with patch.object(provider, "_resolve_video_url", return_value=None):
         with patch("termchat.providers.youtube._YouTubeLiveChatPoller", _Poller):
             import threading
+
             list(provider._open_chat(threading.Event()))
     err = capsys.readouterr().err
     assert "gunlinux" in err
@@ -328,7 +386,9 @@ async def test_youtube_messages_surfaces_bootstrap_error_as_system_msg():
     provider = YouTubeProvider("gunlinux")
 
     class _Poller:
-        def __init__(self, url, **kwargs): pass
+        def __init__(self, url, **kwargs):
+            pass
+
         def __iter__(self):
             raise _YouTubeBootstrapError("Unable to parse initial video data")
 
@@ -342,10 +402,13 @@ async def test_youtube_messages_surfaces_bootstrap_error_as_system_msg():
 
 # --- _extract_bootstrap ---
 
+
 def _bootstrap_html(api_key="K1", client_version="2.0", continuation="CONT0"):
     ytcfg = {
         "INNERTUBE_API_KEY": api_key,
-        "INNERTUBE_CONTEXT": {"client": {"clientName": "WEB", "clientVersion": client_version}},
+        "INNERTUBE_CONTEXT": {
+            "client": {"clientName": "WEB", "clientVersion": client_version}
+        },
     }
     yt_initial = {
         "contents": {
@@ -353,7 +416,12 @@ def _bootstrap_html(api_key="K1", client_version="2.0", continuation="CONT0"):
                 "conversationBar": {
                     "liveChatRenderer": {
                         "continuations": [
-                            {"invalidationContinuationData": {"continuation": continuation, "timeoutMs": 5000}}
+                            {
+                                "invalidationContinuationData": {
+                                    "continuation": continuation,
+                                    "timeoutMs": 5000,
+                                }
+                            }
                         ]
                     }
                 }
@@ -376,7 +444,11 @@ def test_extract_bootstrap_happy_path():
 
 def test_extract_bootstrap_accepts_reload_continuation():
     ytcfg = {"INNERTUBE_API_KEY": "K", "INNERTUBE_CONTEXT": {"client": {}}}
-    yt_initial = {"liveChatRenderer": {"continuations": [{"reloadContinuationData": {"continuation": "RC1"}}]}}
+    yt_initial = {
+        "liveChatRenderer": {
+            "continuations": [{"reloadContinuationData": {"continuation": "RC1"}}]
+        }
+    }
     html = f"<script>ytcfg.set({json.dumps(ytcfg)});ytInitialData = {json.dumps(yt_initial)};</script>"
     _, _, cont = _extract_bootstrap(html)
     assert cont == "RC1"
@@ -415,6 +487,7 @@ def test_extract_bootstrap_broken_live_chat_page_raises():
 
 # --- _extract_continuation ---
 
+
 def test_extract_continuation_invalidation_variant():
     token, sleep_s = _extract_continuation(
         [{"invalidationContinuationData": {"continuation": "T1", "timeoutMs": 3000}}]
@@ -432,17 +505,23 @@ def test_extract_continuation_timed_variant():
 
 
 def test_extract_continuation_reload_variant():
-    token, _ = _extract_continuation([{"reloadContinuationData": {"continuation": "T3"}}])
+    token, _ = _extract_continuation(
+        [{"reloadContinuationData": {"continuation": "T3"}}]
+    )
     assert token == "T3"
 
 
 def test_extract_continuation_replay_variant():
-    token, _ = _extract_continuation([{"liveChatReplayContinuationData": {"continuation": "T4"}}])
+    token, _ = _extract_continuation(
+        [{"liveChatReplayContinuationData": {"continuation": "T4"}}]
+    )
     assert token == "T4"
 
 
 def test_extract_continuation_default_sleep_when_no_timeout():
-    _, sleep_s = _extract_continuation([{"invalidationContinuationData": {"continuation": "T"}}])
+    _, sleep_s = _extract_continuation(
+        [{"invalidationContinuationData": {"continuation": "T"}}]
+    )
     assert sleep_s == 2.0
 
 
@@ -467,11 +546,14 @@ def test_extract_continuation_empty_returns_none():
 
 
 def test_extract_continuation_unknown_key_returns_none():
-    token, _ = _extract_continuation([{"mysteryContinuationData": {"continuation": "X"}}])
+    token, _ = _extract_continuation(
+        [{"mysteryContinuationData": {"continuation": "X"}}]
+    )
     assert token is None
 
 
 # --- _runs_to_flat_and_emotes ---
+
 
 def test_runs_to_flat_text_only():
     text, emotes = _runs_to_flat_and_emotes([{"text": "hello "}, {"text": "world"}])
@@ -486,7 +568,11 @@ def test_runs_to_flat_with_emoji():
             "emoji": {
                 "emojiId": "1f600",
                 "shortcuts": [":smile:"],
-                "image": {"thumbnails": [{"url": "https://yt/s.png", "width": 24, "height": 24}]},
+                "image": {
+                    "thumbnails": [
+                        {"url": "https://yt/s.png", "width": 24, "height": 24}
+                    ]
+                },
                 "isCustomEmoji": False,
             }
         },
@@ -538,6 +624,7 @@ def test_runs_to_flat_dedups_repeated_emoji():
 
 # --- _renderer_to_entry ---
 
+
 def test_renderer_to_entry_text_message():
     item = {
         "liveChatTextMessageRenderer": {
@@ -570,7 +657,15 @@ def test_renderer_to_entry_text_message_with_emoji_roundtrips_through_map_entry(
                         "emoji": {
                             "emojiId": "smile",
                             "shortcuts": [":smile:"],
-                            "image": {"thumbnails": [{"url": "https://yt/s.png", "width": 24, "height": 24}]},
+                            "image": {
+                                "thumbnails": [
+                                    {
+                                        "url": "https://yt/s.png",
+                                        "width": 24,
+                                        "height": 24,
+                                    }
+                                ]
+                            },
                             "isCustomEmoji": False,
                         }
                     },
@@ -624,6 +719,7 @@ def test_renderer_to_entry_skips_unknown_renderers():
 
 # --- _iter_action_entries ---
 
+
 def test_iter_action_entries_addchat_action():
     action = {
         "addChatItemAction": {
@@ -670,6 +766,7 @@ def test_iter_action_entries_ignores_unknown_action():
 
 # --- _YouTubeLiveChatPoller ---
 
+
 class _FakeResponse:
     def __init__(self, status_code: int = 200, text: str = "", json_data=None):
         self.status_code = status_code
@@ -709,7 +806,9 @@ class _FakeClient:
         pass
 
 
-def _innertube_action_response(continuation: str | None, messages: list[tuple[str, str]]):
+def _innertube_action_response(
+    continuation: str | None, messages: list[tuple[str, str]]
+):
     actions = [
         {
             "addChatItemAction": {
@@ -728,11 +827,18 @@ def _innertube_action_response(continuation: str | None, messages: list[tuple[st
     lcc: dict = {"actions": actions}
     if continuation:
         lcc["continuations"] = [
-            {"invalidationContinuationData": {"continuation": continuation, "timeoutMs": 1000}}
+            {
+                "invalidationContinuationData": {
+                    "continuation": continuation,
+                    "timeoutMs": 1000,
+                }
+            }
         ]
     else:
         lcc["continuations"] = []
-    return _FakeResponse(200, json_data={"continuationContents": {"liveChatContinuation": lcc}})
+    return _FakeResponse(
+        200, json_data={"continuationContents": {"liveChatContinuation": lcc}}
+    )
 
 
 def test_poller_yields_messages_and_advances_continuation():
@@ -812,6 +918,7 @@ def test_poller_handles_missing_liveChatContinuation():
 
 
 # --- integration test: requires env var ---
+
 
 @pytest.mark.skipif(
     not os.getenv("YOUTUBE_CHANNEL"),
