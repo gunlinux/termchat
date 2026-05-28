@@ -53,7 +53,7 @@ class TerminalUI:
                 icon = PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
                 p_ansi = _PLATFORM_ANSI.get(msg.platform, "")
                 a_ansi = _AUTHOR_ANSI.get(msg.platform, "")
-                sys.stdout.write(f"{p_ansi}{icon}{_RESET} {a_ansi}{msg.author}{_RESET}: {body}\n")
+                sys.stdout.write(f"\n{p_ansi}{icon}{_RESET} {a_ansi}{msg.author}{_RESET}: {body}")
                 sys.stdout.flush()
                 self._queue.task_done()
         finally:
