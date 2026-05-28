@@ -390,6 +390,7 @@ class YouTubeProvider:
         loop = asyncio.get_running_loop()
         stop = threading.Event()
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        startup_time = datetime.now(timezone.utc)
         try:
             try:
                 chat = await loop.run_in_executor(executor, lambda: self._open_chat(stop))
@@ -405,7 +406,7 @@ class YouTubeProvider:
                 if entry is None:
                     return
                 msg = _map_entry(entry)
-                if msg:
+                if msg and msg.timestamp >= startup_time:
                     yield msg
         finally:
             stop.set()
