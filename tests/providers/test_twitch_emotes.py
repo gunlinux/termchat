@@ -3,7 +3,6 @@ import httpx
 from termchat.domain.message import EmojiRun, TextRun
 from termchat.providers.twitch_emotes import EmoteInfo, TwitchEmoteRegistry
 
-
 # --- tokenize ---
 
 
@@ -153,9 +152,7 @@ async def test_load_channel_hits_bttv_7tv_and_twitch_gql():
                             {"emotes": []},
                         ],
                         "channel": {
-                            "localEmoteSets": [
-                                {"emotes": [{"id": "local1", "token": "chanLocal"}]}
-                            ]
+                            "localEmoteSets": [{"emotes": [{"id": "local1", "token": "chanLocal"}]}]
                         },
                     }
                 }
@@ -186,9 +183,7 @@ async def test_load_channel_hits_bttv_7tv_and_twitch_gql():
         image_url="https://static-cdn.jtvnw.net/emoticons/v2/local1/static/dark/2.0",
         source="twitch-channel",
     )
-    assert (
-        f"https://api.betterttv.net/3/cached/users/twitch/{room_id}" in transport.calls
-    )
+    assert f"https://api.betterttv.net/3/cached/users/twitch/{room_id}" in transport.calls
     assert f"https://7tv.io/v3/users/twitch/{room_id}" in transport.calls
     assert "https://gql.twitch.tv/gql" in transport.calls
     await r.aclose()
@@ -206,9 +201,7 @@ async def test_twitch_channel_emotes_win_collisions_over_3p():
                 "data": {
                     "user": {
                         "channel": {
-                            "localEmoteSets": [
-                                {"emotes": [{"id": "twid", "token": "collide"}]}
-                            ]
+                            "localEmoteSets": [{"emotes": [{"id": "twid", "token": "collide"}]}]
                         }
                     }
                 }

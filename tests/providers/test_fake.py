@@ -1,5 +1,5 @@
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from termchat.domain.message import Message
 from termchat.providers.fake import FakeProvider
@@ -10,7 +10,7 @@ def _msg(i: int) -> Message:
         id=str(i),
         author="user",
         text=f"message {i}",
-        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         platform="fake",
     )
 

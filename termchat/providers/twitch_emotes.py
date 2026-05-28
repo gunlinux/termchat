@@ -75,11 +75,7 @@ class TwitchEmoteRegistry:
                 if buf:
                     runs.append(TextRun(text=buf))
                     buf = ""
-                runs.append(
-                    EmojiRun(
-                        shortcut=info.name, image_url=info.image_url, is_custom=True
-                    )
-                )
+                runs.append(EmojiRun(shortcut=info.name, image_url=info.image_url, is_custom=True))
             else:
                 buf += part
         if buf:
@@ -133,8 +129,7 @@ class TwitchEmoteRegistry:
                     EmoteInfo(
                         name=name,
                         image_url=(
-                            f"https://static-cdn.jtvnw.net/emoticons/v2/{eid}"
-                            "/static/dark/2.0"
+                            f"https://static-cdn.jtvnw.net/emoticons/v2/{eid}/static/dark/2.0"
                         ),
                         source="twitch-channel",
                     )
@@ -149,9 +144,7 @@ class TwitchEmoteRegistry:
             resp = await client.get(url)
             resp.raise_for_status()
             data = resp.json() or {}
-            for entry in (data.get("channelEmotes") or []) + (
-                data.get("sharedEmotes") or []
-            ):
+            for entry in (data.get("channelEmotes") or []) + (data.get("sharedEmotes") or []):
                 self._ingest_bttv(entry, source="bttv-channel")
         except Exception:
             pass

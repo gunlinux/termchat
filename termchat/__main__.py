@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import signal
 import sys
+from datetime import UTC
 
 from termchat.app import MessageBus
 from termchat.domain.message import Message
@@ -50,7 +51,8 @@ async def _run(args: argparse.Namespace) -> None:
     providers: list[Provider] = []
 
     if args.demo:
-        from datetime import datetime, timezone
+        from datetime import datetime
+
         from termchat.domain.message import Message as Msg
         from termchat.providers.fake import FakeProvider
 
@@ -59,7 +61,7 @@ async def _run(args: argparse.Namespace) -> None:
                 id=str(i),
                 author="demo_user",
                 text=f"Demo message {i}",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 platform="fake",
             )
             for i in range(10)
@@ -68,11 +70,10 @@ async def _run(args: argparse.Namespace) -> None:
 
     if args.twitch:
         import os
+
         from termchat.providers.twitch import TwitchProvider
 
-        providers.append(
-            TwitchProvider(args.twitch, os.environ.get("TWITCH_OAUTH", ""))
-        )
+        providers.append(TwitchProvider(args.twitch, os.environ.get("TWITCH_OAUTH", "")))
 
     if args.youtube:
         from termchat.providers.youtube import YouTubeProvider

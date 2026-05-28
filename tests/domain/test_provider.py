@@ -1,5 +1,5 @@
-from datetime import datetime, timezone
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 
 from termchat.domain.message import Message
 from termchat.domain.provider import Provider
@@ -7,7 +7,7 @@ from termchat.domain.provider import Provider
 
 class _ConcreteProvider:
     async def messages(self) -> AsyncGenerator[Message, None]:
-        ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        ts = datetime(2024, 1, 1, tzinfo=UTC)
         yield Message(id="1", author="a", text="hi", timestamp=ts, platform="test")
 
 

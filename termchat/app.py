@@ -1,15 +1,13 @@
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from termchat.domain.message import Message
 from termchat.domain.provider import Provider
 
 
 class MessageBus:
-    def __init__(
-        self, providers: list[Provider], queue: asyncio.Queue[Message]
-    ) -> None:
+    def __init__(self, providers: list[Provider], queue: asyncio.Queue[Message]) -> None:
         self._providers = providers
         self._queue = queue
         self._counts: dict[str, int] = {}
@@ -35,7 +33,7 @@ class MessageBus:
                     id=str(uuid.uuid4()),
                     author="system",
                     text=f"[{type(provider).__name__}] error: {e}",
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=datetime.now(UTC),
                     platform="system",
                 )
             )

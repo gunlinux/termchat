@@ -10,7 +10,6 @@ from termchat.ui.emoji_render import (
     render_run,
 )
 
-
 # --- detect_image_protocol ---
 
 

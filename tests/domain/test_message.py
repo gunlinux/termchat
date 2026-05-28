@@ -1,4 +1,6 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
+import pytest
 
 from termchat.domain.message import EmojiRun, Message, TextRun
 
@@ -8,7 +10,7 @@ def test_message_construction():
         id="abc123",
         author="streamer",
         text="Hello world",
-        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         platform="twitch",
     )
     assert msg.id == "abc123"
@@ -22,18 +24,15 @@ def test_message_is_frozen():
         id="x",
         author="a",
         text="t",
-        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         platform="twitch",
     )
-    try:
+    with pytest.raises(Exception):  # noqa: B017 — frozen dataclass raises FrozenInstanceError
         msg.text = "changed"  # type: ignore[misc]
-        assert False, "should have raised"
-    except Exception:
-        pass
 
 
 def test_message_equality():
-    ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    ts = datetime(2024, 1, 1, tzinfo=UTC)
     m1 = Message(id="1", author="a", text="t", timestamp=ts, platform="p")
     m2 = Message(id="1", author="a", text="t", timestamp=ts, platform="p")
     assert m1 == m2
@@ -44,7 +43,7 @@ def test_message_runs_default_empty():
         id="x",
         author="a",
         text="t",
-        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         platform="p",
     )
     assert msg.runs == ()
@@ -53,9 +52,7 @@ def test_message_runs_default_empty():
 def test_message_runs_round_trip():
     runs: tuple[TextRun | EmojiRun, ...] = (
         TextRun(text="hi "),
-        EmojiRun(
-            shortcut=":smile:", image_url="https://example/smile.png", is_custom=False
-        ),
+        EmojiRun(shortcut=":smile:", image_url="https://example/smile.png", is_custom=False),
         TextRun(text=" "),
         EmojiRun(
             shortcut=":_custom_:",
@@ -67,7 +64,7 @@ def test_message_runs_round_trip():
         id="x",
         author="a",
         text="hi :smile: :_custom_:",
-        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         platform="p",
         runs=runs,
     )

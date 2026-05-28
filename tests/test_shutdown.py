@@ -2,6 +2,7 @@ import asyncio
 import signal
 import subprocess
 import sys
+from datetime import UTC
 
 import pytest
 
@@ -9,12 +10,12 @@ from termchat.app import MessageBus
 from termchat.domain.message import Message
 from termchat.domain.provider import Provider
 
-
 # --- unit tests: count tracking ---
 
 
 async def test_message_bus_counts_by_platform():
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     from termchat.providers.fake import FakeProvider
 
     def _m(i: int, p: str) -> Message:
@@ -22,7 +23,7 @@ async def test_message_bus_counts_by_platform():
             id=str(i),
             author="a",
             text="t",
-            timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            timestamp=datetime(2024, 1, 1, tzinfo=UTC),
             platform=p,
         )
 
@@ -52,8 +53,6 @@ def test_sigint_exits_cleanly():
     proc.send_signal(signal.SIGINT)
     stdout, stderr = proc.communicate(timeout=8)
 
-    assert proc.returncode == 0, (
-        f"exit code was {proc.returncode}\nstderr: {stderr.decode()}"
-    )
+    assert proc.returncode == 0, f"exit code was {proc.returncode}\nstderr: {stderr.decode()}"
     assert b"Messages received" in stdout, f"no summary in stdout: {stdout.decode()}"
     assert b"Traceback" not in stderr, f"traceback in stderr: {stderr.decode()}"

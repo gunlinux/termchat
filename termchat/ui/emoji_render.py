@@ -13,9 +13,10 @@ import hashlib
 import os
 import time
 from collections import OrderedDict
+from collections.abc import Iterable
 from io import BytesIO
 from pathlib import Path
-from typing import Iterable, Literal
+from typing import Literal
 
 import httpx
 
@@ -231,9 +232,7 @@ def _kitty_escape(data: bytes) -> str:
     # via the TTY input channel and the shell echoes the response bytes back to
     # the screen as visible garbage.
     payload = base64.standard_b64encode(data).decode("ascii")
-    chunks = [
-        payload[i : i + _KITTY_CHUNK] for i in range(0, len(payload), _KITTY_CHUNK)
-    ]
+    chunks = [payload[i : i + _KITTY_CHUNK] for i in range(0, len(payload), _KITTY_CHUNK)]
     if not chunks:
         chunks = [""]
     if len(chunks) == 1:
@@ -247,6 +246,4 @@ def _kitty_escape(data: bytes) -> str:
 
 def _iterm2_escape(data: bytes) -> str:
     payload = base64.standard_b64encode(data).decode("ascii")
-    return (
-        f"\x1b]1337;File=inline=1;width=2;height=1;preserveAspectRatio=1:{payload}\x07"
-    )
+    return f"\x1b]1337;File=inline=1;width=2;height=1;preserveAspectRatio=1:{payload}\x07"

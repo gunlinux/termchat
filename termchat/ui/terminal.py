@@ -60,9 +60,7 @@ class TerminalUI:
                 icon = _PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
                 p_ansi = _PLATFORM_ANSI.get(msg.platform, "")
                 a_ansi = _AUTHOR_ANSI.get(msg.platform, "")
-                sys.stdout.write(
-                    f"{p_ansi}{icon}{_RESET} {a_ansi}{msg.author}{_RESET}: {body}\n"
-                )
+                sys.stdout.write(f"{p_ansi}{icon}{_RESET} {a_ansi}{msg.author}{_RESET}: {body}\n")
                 sys.stdout.flush()
                 self._queue.task_done()
         finally:
@@ -72,11 +70,7 @@ class TerminalUI:
     async def _prefetch_emote_images(self, msg: Message) -> None:
         if not msg.runs or self._cache is None:
             return
-        urls = {
-            run.image_url
-            for run in msg.runs
-            if isinstance(run, EmojiRun) and run.image_url
-        }
+        urls = {run.image_url for run in msg.runs if isinstance(run, EmojiRun) and run.image_url}
         if urls:
             await self._cache.prefetch(urls)
 

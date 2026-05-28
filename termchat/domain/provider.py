@@ -1,4 +1,5 @@
-from typing import AsyncGenerator, Protocol
+from collections.abc import AsyncGenerator
+from typing import Protocol
 
 from termchat.domain.message import Message
 

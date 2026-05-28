@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 
@@ -14,7 +14,7 @@ class EmojiRun:
     is_custom: bool
 
 
-MessageRun = TextRun | EmojiRun
+type MessageRun = TextRun | EmojiRun
 
 
 @dataclass(frozen=True)
@@ -24,4 +24,4 @@ class Message:
     text: str
     timestamp: datetime
     platform: str
-    runs: tuple[MessageRun, ...] = field(default_factory=tuple)
+    runs: tuple[MessageRun, ...] = ()

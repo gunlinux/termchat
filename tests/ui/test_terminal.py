@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import StringIO
 from unittest.mock import patch
 
@@ -12,7 +12,7 @@ def _msg(i: int, platform: str = "twitch") -> Message:
         id=str(i),
         author="streamer",
         text=f"hello {i}",
-        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         platform=platform,
     )
 
@@ -58,7 +58,7 @@ async def test_terminal_ui_falls_back_to_shortcuts_when_no_image_protocol():
         id="1",
         author="alice",
         text="hi :smile:",
-        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         platform="twitch",
         runs=(
             TextRun(text="hi "),
@@ -85,7 +85,7 @@ async def test_terminal_ui_emits_kitty_escape_when_cache_warm():
         id="1",
         author="alice",
         text="hi :smile:",
-        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         platform="twitch",
         runs=(
             TextRun(text="hi "),
@@ -140,7 +140,7 @@ async def test_terminal_ui_waits_for_emote_fetch_before_printing():
         id="1",
         author="alice",
         text="hi :smile:",
-        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         platform="twitch",
         runs=(
             TextRun(text="hi "),

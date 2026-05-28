@@ -1,7 +1,7 @@
 import json
 import os
 import urllib.error
-from datetime import timezone
+from datetime import UTC
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -10,8 +10,6 @@ import pytest
 from termchat.domain.message import EmojiRun, TextRun
 from termchat.providers.youtube import (
     YouTubeProvider,
-    _YouTubeBootstrapError,
-    _YouTubeLiveChatPoller,
     _extract_bootstrap,
     _extract_continuation,
     _iter_action_entries,
@@ -19,8 +17,9 @@ from termchat.providers.youtube import (
     _renderer_to_entry,
     _runs_to_flat_and_emotes,
     _tokenize,
+    _YouTubeBootstrapError,
+    _YouTubeLiveChatPoller,
 )
-
 
 # --- unit tests: entry mapping ---
 
@@ -65,7 +64,7 @@ def test_map_entry_no_timestamp_uses_now():
     entry = {"author": "a", "message": "hi"}
     msg = _map_entry(entry)
     assert msg is not None
-    assert msg.timestamp.tzinfo == timezone.utc
+    assert msg.timestamp.tzinfo == UTC
 
 
 def test_map_entry_with_mixed_emotes():
@@ -100,9 +99,7 @@ def test_map_entry_with_mixed_emotes():
         TextRun(text="hi "),
         EmojiRun(shortcut=":smile:", image_url="https://yt/smile.png", is_custom=False),
         TextRun(text=" friends "),
-        EmojiRun(
-            shortcut=":_custom_:", image_url="https://yt/custom_48.png", is_custom=True
-        ),
+        EmojiRun(shortcut=":_custom_:", image_url="https://yt/custom_48.png", is_custom=True),
         TextRun(text="!"),
     )
 
@@ -232,17 +229,11 @@ async def test_youtube_messages_yields_system_on_iteration_error():
 
 
 def test_youtube_live_url_builds_from_channel():
-    assert (
-        YouTubeProvider("somechannel").live_url
-        == "https://www.youtube.com/@somechannel/live"
-    )
+    assert YouTubeProvider("somechannel").live_url == "https://www.youtube.com/@somechannel/live"
 
 
 def test_youtube_live_url_strips_leading_at():
-    assert (
-        YouTubeProvider("@somechannel").live_url
-        == "https://www.youtube.com/@somechannel/live"
-    )
+    assert YouTubeProvider("@somechannel").live_url == "https://www.youtube.com/@somechannel/live"
 
 
 # --- _resolve_video_url ---
@@ -269,9 +260,7 @@ def test_resolve_video_url_from_canonical_link():
 
 
 def test_resolve_video_url_from_og_url():
-    html = (
-        '<meta property="og:url" content="https://www.youtube.com/watch?v=abcd1234567">'
-    )
+    html = '<meta property="og:url" content="https://www.youtube.com/watch?v=abcd1234567">'
     provider = YouTubeProvider("gunlinux")
     with patch(
         "urllib.request.urlopen",
@@ -406,9 +395,7 @@ async def test_youtube_messages_surfaces_bootstrap_error_as_system_msg():
 def _bootstrap_html(api_key="K1", client_version="2.0", continuation="CONT0"):
     ytcfg = {
         "INNERTUBE_API_KEY": api_key,
-        "INNERTUBE_CONTEXT": {
-            "client": {"clientName": "WEB", "clientVersion": client_version}
-        },
+        "INNERTUBE_CONTEXT": {"client": {"clientName": "WEB", "clientVersion": client_version}},
     }
     yt_initial = {
         "contents": {
@@ -445,11 +432,11 @@ def test_extract_bootstrap_happy_path():
 def test_extract_bootstrap_accepts_reload_continuation():
     ytcfg = {"INNERTUBE_API_KEY": "K", "INNERTUBE_CONTEXT": {"client": {}}}
     yt_initial = {
-        "liveChatRenderer": {
-            "continuations": [{"reloadContinuationData": {"continuation": "RC1"}}]
-        }
+        "liveChatRenderer": {"continuations": [{"reloadContinuationData": {"continuation": "RC1"}}]}
     }
-    html = f"<script>ytcfg.set({json.dumps(ytcfg)});ytInitialData = {json.dumps(yt_initial)};</script>"
+    html = (
+        f"<script>ytcfg.set({json.dumps(ytcfg)});ytInitialData = {json.dumps(yt_initial)};</script>"
+    )
     _, _, cont = _extract_bootstrap(html)
     assert cont == "RC1"
 
@@ -470,7 +457,9 @@ def test_extract_bootstrap_missing_api_key_raises():
 def test_extract_bootstrap_missing_continuation_raises():
     ytcfg = {"INNERTUBE_API_KEY": "K", "INNERTUBE_CONTEXT": {"client": {}}}
     yt_initial = {"contents": {"foo": "bar"}}
-    html = f"<script>ytcfg.set({json.dumps(ytcfg)});ytInitialData = {json.dumps(yt_initial)};</script>"
+    html = (
+        f"<script>ytcfg.set({json.dumps(ytcfg)});ytInitialData = {json.dumps(yt_initial)};</script>"
+    )
     with pytest.raises(_YouTubeBootstrapError):
         _extract_bootstrap(html)
 
@@ -505,23 +494,17 @@ def test_extract_continuation_timed_variant():
 
 
 def test_extract_continuation_reload_variant():
-    token, _ = _extract_continuation(
-        [{"reloadContinuationData": {"continuation": "T3"}}]
-    )
+    token, _ = _extract_continuation([{"reloadContinuationData": {"continuation": "T3"}}])
     assert token == "T3"
 
 
 def test_extract_continuation_replay_variant():
-    token, _ = _extract_continuation(
-        [{"liveChatReplayContinuationData": {"continuation": "T4"}}]
-    )
+    token, _ = _extract_continuation([{"liveChatReplayContinuationData": {"continuation": "T4"}}])
     assert token == "T4"
 
 
 def test_extract_continuation_default_sleep_when_no_timeout():
-    _, sleep_s = _extract_continuation(
-        [{"invalidationContinuationData": {"continuation": "T"}}]
-    )
+    _, sleep_s = _extract_continuation([{"invalidationContinuationData": {"continuation": "T"}}])
     assert sleep_s == 2.0
 
 
@@ -546,9 +529,7 @@ def test_extract_continuation_empty_returns_none():
 
 
 def test_extract_continuation_unknown_key_returns_none():
-    token, _ = _extract_continuation(
-        [{"mysteryContinuationData": {"continuation": "X"}}]
-    )
+    token, _ = _extract_continuation([{"mysteryContinuationData": {"continuation": "X"}}])
     assert token is None
 
 
@@ -568,11 +549,7 @@ def test_runs_to_flat_with_emoji():
             "emoji": {
                 "emojiId": "1f600",
                 "shortcuts": [":smile:"],
-                "image": {
-                    "thumbnails": [
-                        {"url": "https://yt/s.png", "width": 24, "height": 24}
-                    ]
-                },
+                "image": {"thumbnails": [{"url": "https://yt/s.png", "width": 24, "height": 24}]},
                 "isCustomEmoji": False,
             }
         },
@@ -806,9 +783,7 @@ class _FakeClient:
         pass
 
 
-def _innertube_action_response(
-    continuation: str | None, messages: list[tuple[str, str]]
-):
+def _innertube_action_response(continuation: str | None, messages: list[tuple[str, str]]):
     actions = [
         {
             "addChatItemAction": {
@@ -836,9 +811,7 @@ def _innertube_action_response(
         ]
     else:
         lcc["continuations"] = []
-    return _FakeResponse(
-        200, json_data={"continuationContents": {"liveChatContinuation": lcc}}
-    )
+    return _FakeResponse(200, json_data={"continuationContents": {"liveChatContinuation": lcc}})
 
 
 def test_poller_yields_messages_and_advances_continuation():
@@ -863,7 +836,8 @@ def test_poller_yields_messages_and_advances_continuation():
     for url, _ in client.post_calls:
         assert "key=K1" in url
         assert "prettyPrint=false" in url
-    # only sleeps between iterations that returned a next continuation (twice: after C0 and C1 responses)
+    # only sleeps between iterations that returned a next continuation
+    # (twice: after C0 and C1 responses)
     assert sleeps == [1.0, 1.0]
 
 

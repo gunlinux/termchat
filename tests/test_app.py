@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from termchat.app import MessageBus
 from termchat.domain.message import Message
@@ -22,7 +22,7 @@ def _msg(i: int, platform: str = "fake") -> Message:
         id=str(i),
         author="user",
         text=f"msg {i}",
-        timestamp=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
         platform=platform,
     )
 
@@ -72,9 +72,7 @@ async def test_message_bus_interleaved_delays():
 async def test_failing_provider_does_not_kill_other_providers():
     good_msgs = [_msg(i, "good") for i in range(2)]
     queue: asyncio.Queue[Message] = asyncio.Queue()
-    bus = MessageBus(
-        [_ErrorProvider(RuntimeError("boom")), FakeProvider(good_msgs)], queue
-    )
+    bus = MessageBus([_ErrorProvider(RuntimeError("boom")), FakeProvider(good_msgs)], queue)
     await bus.run()  # must not raise
     collected = []
     while not queue.empty():

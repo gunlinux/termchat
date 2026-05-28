@@ -7,8 +7,9 @@ import threading
 import time
 import urllib.request
 import uuid
-from datetime import datetime, timezone
-from typing import Any, AsyncGenerator, Iterator, Protocol
+from collections.abc import AsyncGenerator, Iterator
+from datetime import UTC, datetime
+from typing import Any, Protocol
 
 import httpx
 
@@ -34,9 +35,7 @@ def _largest_image_url(images: list[dict[str, Any]] | None) -> str | None:
     sized = [img for img in images if img.get("url")]
     if not sized:
         return None
-    sized.sort(
-        key=lambda img: (img.get("width") or 0) * (img.get("height") or 0), reverse=True
-    )
+    sized.sort(key=lambda img: (img.get("width") or 0) * (img.get("height") or 0), reverse=True)
     return sized[0]["url"]
 
 
@@ -84,11 +83,7 @@ def _map_entry(entry: dict[str, Any]) -> Message | None:
         author = author.get("name") or "unknown"
 
     ts_usec = entry.get("timestamp")
-    ts = (
-        datetime.fromtimestamp(ts_usec / 1_000_000, tz=timezone.utc)
-        if ts_usec
-        else datetime.now(timezone.utc)
-    )
+    ts = datetime.fromtimestamp(ts_usec / 1_000_000, tz=UTC) if ts_usec else datetime.now(UTC)
 
     emotes = entry.get("emotes") or []
     runs = _tokenize(str(text), emotes)
@@ -108,7 +103,7 @@ def _system_msg(text: str) -> Message:
         id=str(uuid.uuid4()),
         author="system",
         text=text,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         platform="system",
     )
 
@@ -333,9 +328,7 @@ class _YouTubeLiveChatPoller:
             api_url = f"{_LIVE_CHAT_API}?key={api_key}&prettyPrint=false"
             while continuation and not self._stop.is_set():
                 payload = self._post_chat(client, api_url, ctx, continuation)
-                lcc = (payload.get("continuationContents") or {}).get(
-                    "liveChatContinuation"
-                )
+                lcc = (payload.get("continuationContents") or {}).get("liveChatContinuation")
                 if not isinstance(lcc, dict):
                     return
                 for action in lcc.get("actions") or []:
@@ -343,9 +336,7 @@ class _YouTubeLiveChatPoller:
                         if self._stop.is_set():
                             return
                         yield from _iter_action_entries(action)
-                continuation, sleep_s = _extract_continuation(
-                    lcc.get("continuations") or []
-                )
+                continuation, sleep_s = _extract_continuation(lcc.get("continuations") or [])
                 if not continuation or self._stop.is_set():
                     return
                 if sleep_s > 0:
@@ -407,12 +398,10 @@ class YouTubeProvider:
         loop = asyncio.get_running_loop()
         stop = threading.Event()
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        startup_time = datetime.now(timezone.utc)
+        startup_time = datetime.now(UTC)
         try:
             try:
-                chat = await loop.run_in_executor(
-                    executor, lambda: self._open_chat(stop)
-                )
+                chat = await loop.run_in_executor(executor, lambda: self._open_chat(stop))
             except Exception as e:
                 yield _system_msg(f"[youtube] failed to open chat: {e}")
                 return
@@ -434,9 +423,7 @@ class YouTubeProvider:
     def _resolve_video_url(self) -> str | None:
         req = urllib.request.Request(
             self.live_url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
-            },
+            headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"},
         )
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
@@ -447,17 +434,13 @@ class YouTubeProvider:
         except Exception:
             return None
 
-        m = re.search(
-            r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', html
-        )
+        m = re.search(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', html)
         if m and "watch?v=" in m.group(1):
             vid = re.search(r"[?&]v=([A-Za-z0-9_-]{11})", m.group(1))
             if vid:
                 return f"https://www.youtube.com/watch?v={vid.group(1)}"
 
-        m = re.search(
-            r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\']([^"\']+)["\']', html
-        )
+        m = re.search(r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\']([^"\']+)["\']', html)
         if m and "watch?v=" in m.group(1):
             vid = re.search(r"[?&]v=([A-Za-z0-9_-]{11})", m.group(1))
             if vid:

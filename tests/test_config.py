@@ -1,7 +1,7 @@
 import argparse
 
-from termchat.config import load_config
 from termchat.__main__ import _apply_config
+from termchat.config import load_config
 
 
 def test_load_config_missing_file_returns_empty(tmp_path):

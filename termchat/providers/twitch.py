@@ -3,8 +3,8 @@ import os
 import random
 import re
 import uuid
-from datetime import datetime, timezone
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 
 from termchat.domain.message import EmojiRun, Message, MessageRun, TextRun
 from termchat.providers.twitch_emotes import TwitchEmoteRegistry
@@ -110,9 +110,7 @@ def build_runs(
     return tuple(runs)
 
 
-def parse_privmsg(
-    line: str, registry: TwitchEmoteRegistry | None = None
-) -> Message | None:
+def parse_privmsg(line: str, registry: TwitchEmoteRegistry | None = None) -> Message | None:
     m = _PRIVMSG_RE.match(line)
     if not m:
         return None
@@ -124,7 +122,7 @@ def parse_privmsg(
         id=tags.get("id") or str(uuid.uuid4()),
         author=tags.get("display-name") or m.group("nick"),
         text=text,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         platform="twitch",
         runs=runs,
     )
@@ -214,9 +212,7 @@ class TwitchProvider:
                 if channel_task is None:
                     room_id = parse_roomstate(line)
                     if room_id:
-                        channel_task = asyncio.create_task(
-                            registry.load_channel(room_id)
-                        )
+                        channel_task = asyncio.create_task(registry.load_channel(room_id))
                         continue
 
                 msg = parse_privmsg(line, registry)

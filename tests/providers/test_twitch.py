@@ -15,7 +15,6 @@ from termchat.providers.twitch import (
 )
 from termchat.providers.twitch_emotes import EmoteInfo, TwitchEmoteRegistry
 
-
 # --- bare PRIVMSG (backward compat) ---
 
 
@@ -229,10 +228,7 @@ def test_parse_privmsg_with_tags_uses_display_name():
 
 
 def test_parse_privmsg_with_emotes_produces_runs():
-    line = (
-        "@emotes=25:0-4;display-name=bob "
-        ":bob!bob@bob.tmi.twitch.tv PRIVMSG #ch :Kappa hello"
-    )
+    line = "@emotes=25:0-4;display-name=bob :bob!bob@bob.tmi.twitch.tv PRIVMSG #ch :Kappa hello"
     msg = parse_privmsg(line)
     assert msg is not None
     assert msg.runs == (

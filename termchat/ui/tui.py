@@ -70,16 +70,12 @@ class TermchatApp(App[None]):
             platform_tag = f"[bold {color}]{icon}[/bold {color}]"
             author = msg.author.ljust(_AUTHOR_WIDTH)[:_AUTHOR_WIDTH]
             body = self._render_body(msg)
-            log.write(
-                f"{platform_tag} [bold {author_color}]{author}[/bold {author_color}] {body}"
-            )
+            log.write(f"{platform_tag} [bold {author_color}]{author}[/bold {author_color}] {body}")
 
     def _render_body(self, msg: Message) -> str:
         if not msg.runs or self._emoji_cache is None:
             return msg.text
-        return "".join(
-            render_run(r, self._protocol, self._emoji_cache) for r in msg.runs
-        )
+        return "".join(render_run(r, self._protocol, self._emoji_cache) for r in msg.runs)
 
     async def on_unmount(self) -> None:
         self._bus_task.cancel()
