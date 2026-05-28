@@ -75,6 +75,7 @@ def _tokenize(message: str, emotes: list[dict[str, Any]]) -> tuple[MessageRun, .
 
 
 def _map_entry(entry: dict[str, Any]) -> Message | None:
+    """Map a poller chat entry to a Message (reconstructing emote runs); None if it has no text."""
     text = entry.get("message") or ""
     if not text:
         return None

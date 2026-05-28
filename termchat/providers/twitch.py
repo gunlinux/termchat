@@ -111,6 +111,7 @@ def build_runs(
 
 
 def parse_privmsg(line: str, registry: TwitchEmoteRegistry | None = None) -> Message | None:
+    """Parse one IRC PRIVMSG line into a Message (with emote runs); None if it isn't a PRIVMSG."""
     m = _PRIVMSG_RE.match(line)
     if not m:
         return None
@@ -129,6 +130,7 @@ def parse_privmsg(line: str, registry: TwitchEmoteRegistry | None = None) -> Mes
 
 
 def parse_roomstate(line: str) -> str | None:
+    """Return the channel's room-id from an IRC ROOMSTATE line; None if absent or not ROOMSTATE."""
     m = _ROOMSTATE_RE.match(line)
     if not m:
         return None

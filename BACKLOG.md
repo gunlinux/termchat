@@ -106,7 +106,7 @@ For best-effort network paths in `twitch_emotes.py` load methods,
 - Either raise explicitly, or add `# narrowing: callers guarantee cache_dir set`
   if leaving as a type-narrowing aid.
 
-### TASK-15: Add docstrings to public parsing entry points
+### TASK-15: Add docstrings to public parsing entry points ✅ DONE
 One-liners for: `load_config`, `parse_privmsg`, `parse_roomstate`, `_map_entry`.
 
 ### TASK-16: Name the iTerm2 escape magic numbers ✅ DONE
