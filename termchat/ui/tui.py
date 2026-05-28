@@ -7,12 +7,27 @@ from termchat.app import MessageBus
 from termchat.domain.message import Message
 from termchat.ui.emoji_render import EmojiImageCache, detect_image_protocol, render_run
 
+_PLATFORM_ICONS: dict[str, str] = {
+    "twitch": "",   # Nerd Font nf-fa-twitch
+    "youtube": "",  # Nerd Font nf-fa-youtube
+    "fake": "◉",
+    "system": "⚙",
+}
+
 _PLATFORM_COLORS: dict[str, str] = {
-    "twitch": "medium_purple",
+    "twitch": "rgb(145,70,255)",
     "youtube": "red",
     "fake": "green",
     "system": "dark_orange",
 }
+
+_AUTHOR_COLORS: dict[str, str] = {
+    "twitch": "#b04fdd",   # rgb(176, 79, 221)
+    "youtube": "#ff69b4",  # pink
+    "fake": "green",
+    "system": "dark_orange",
+}
+
 _AUTHOR_WIDTH = 20
 
 
@@ -45,10 +60,12 @@ class TermchatApp(App[None]):
             msg = self._queue.get_nowait()
             self._queue.task_done()
             color = _PLATFORM_COLORS.get(msg.platform, "white")
-            platform_tag = f"[bold {color}][{msg.platform}][/bold {color}]"
+            author_color = _AUTHOR_COLORS.get(msg.platform, "cyan")
+            icon = _PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
+            platform_tag = f"[bold {color}]{icon}[/bold {color}]"
             author = msg.author.ljust(_AUTHOR_WIDTH)[:_AUTHOR_WIDTH]
             body = self._render_body(msg)
-            log.write(f"{platform_tag} [cyan]{author}[/cyan] {body}")
+            log.write(f"{platform_tag} [bold {author_color}]{author}[/bold {author_color}] {body}")
 
     def _render_body(self, msg: Message) -> str:
         if not msg.runs or self._emoji_cache is None:

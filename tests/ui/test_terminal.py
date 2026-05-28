@@ -32,7 +32,8 @@ async def test_terminal_ui_formats_message():
     with patch("sys.stdout", output):
         await _drain(ui, queue)
 
-    assert "[twitch] streamer: hello 0" in output.getvalue()
+    out = output.getvalue()
+    assert "streamer\x1b[0m: hello 0" in out
 
 
 async def test_terminal_ui_multiple_messages():
@@ -47,8 +48,8 @@ async def test_terminal_ui_multiple_messages():
 
     lines = output.getvalue().strip().splitlines()
     assert len(lines) == 3
-    assert lines[0] == "[twitch] streamer: hello 0"
-    assert lines[2] == "[twitch] streamer: hello 2"
+    assert "streamer\x1b[0m: hello 0" in lines[0]
+    assert "streamer\x1b[0m: hello 2" in lines[2]
 
 
 async def test_terminal_ui_falls_back_to_shortcuts_when_no_image_protocol():
@@ -74,7 +75,7 @@ async def test_terminal_ui_falls_back_to_shortcuts_when_no_image_protocol():
         ui = TerminalUI(queue)
         await _drain(ui, queue)
 
-    assert "[twitch] alice: hi :smile:" in output.getvalue()
+    assert "alice\x1b[0m: hi :smile:" in output.getvalue()
 
 
 async def test_terminal_ui_emits_kitty_escape_when_cache_warm():
@@ -105,7 +106,7 @@ async def test_terminal_ui_emits_kitty_escape_when_cache_warm():
         await ui._cache.aclose()
 
     rendered = output.getvalue()
-    assert "[twitch] alice: hi " in rendered
+    assert "alice\x1b[0m: hi " in rendered
     assert "\x1b_G" in rendered  # Kitty graphics escape made it to stdout
 
 
@@ -169,5 +170,5 @@ async def test_terminal_ui_waits_for_emote_fetch_before_printing():
         await cache.aclose()
 
     rendered = output.getvalue()
-    assert "[twitch] alice: hi " in rendered
+    assert "alice\x1b[0m: hi " in rendered
     assert "\x1b_G" in rendered  # image escape, not shortcode

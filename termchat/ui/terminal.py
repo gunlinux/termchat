@@ -9,6 +9,31 @@ from termchat.ui.emoji_render import (
     render_run,
 )
 
+_PLATFORM_ICONS: dict[str, str] = {
+    "twitch": "",   # Nerd Font nf-fa-twitch
+    "youtube": "",  # Nerd Font nf-fa-youtube
+    "fake": "◉",
+    "system": "⚙",
+}
+
+# ANSI color applied to the platform icon
+_PLATFORM_ANSI: dict[str, str] = {
+    "twitch": "\x1b[38;2;145;70;255m",
+    "youtube": "\x1b[38;2;255;0;0m",
+    "fake": "\x1b[38;2;100;220;100m",
+    "system": "\x1b[38;2;255;165;0m",
+}
+
+# ANSI color applied to the author/nickname
+_AUTHOR_ANSI: dict[str, str] = {
+    "twitch": "\x1b[38;2;176;79;221m",
+    "youtube": "\x1b[38;2;255;105;180m",
+    "fake": "\x1b[38;2;100;220;100m",
+    "system": "\x1b[38;2;255;165;0m",
+}
+
+_RESET = "\x1b[0m"
+
 
 class TerminalUI:
     def __init__(self, queue: asyncio.Queue[Message]) -> None:
@@ -31,7 +56,12 @@ class TerminalUI:
                 # cached — avoids the "first occurrence is :shortcode:" flash.
                 await self._prefetch_emote_images(msg)
                 body = self._render_body(msg)
-                sys.stdout.write(f"[{msg.platform}] {msg.author}: {body}\n")
+                icon = _PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
+                p_ansi = _PLATFORM_ANSI.get(msg.platform, "")
+                a_ansi = _AUTHOR_ANSI.get(msg.platform, "")
+                sys.stdout.write(
+                    f"{p_ansi}{icon}{_RESET} {a_ansi}{msg.author}{_RESET}: {body}\n"
+                )
                 sys.stdout.flush()
                 self._queue.task_done()
         finally:
