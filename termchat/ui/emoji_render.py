@@ -127,7 +127,11 @@ class EmojiImageCache:
             self._data.popitem(last=False)
 
     def _disk_path(self, url: str) -> Path:
-        assert self._cache_dir is not None
+        # narrowing: only ever reached via _read_disk / _write_disk, which both
+        # guard on `self._cache_dir is not None`. Raise (rather than assert, which
+        # `python -O` strips) so a future unguarded caller fails loudly.
+        if self._cache_dir is None:
+            raise RuntimeError("_disk_path called with disk cache disabled")
         return self._cache_dir / hashlib.sha1(url.encode("utf-8")).hexdigest()
 
     def _read_disk(self, url: str) -> bytes | None:
@@ -223,6 +227,10 @@ def _to_png_first_frame(data: bytes) -> bytes:
 
 
 _KITTY_CHUNK = 4096
+# Terminal cells an emote occupies, kept in sync between the Kitty (c=/r=) and
+# iTerm2 (width=/height=) escapes so emotes are the same size on both.
+_EMOJI_CELLS_W = 2
+_EMOJI_CELLS_H = 1
 
 
 def _kitty_escape(data: bytes) -> str:
@@ -233,9 +241,10 @@ def _kitty_escape(data: bytes) -> str:
     chunks = [payload[i : i + _KITTY_CHUNK] for i in range(0, len(payload), _KITTY_CHUNK)]
     if not chunks:
         chunks = [""]
+    head = f"f=100,a=T,t=d,c={_EMOJI_CELLS_W},r={_EMOJI_CELLS_H},q=2"
     if len(chunks) == 1:
-        return f"\x1b_Gf=100,a=T,t=d,c=2,r=1,q=2;{chunks[0]}\x1b\\"
-    parts = [f"\x1b_Gf=100,a=T,t=d,c=2,r=1,q=2,m=1;{chunks[0]}\x1b\\"]
+        return f"\x1b_G{head};{chunks[0]}\x1b\\"
+    parts = [f"\x1b_G{head},m=1;{chunks[0]}\x1b\\"]
     for chunk in chunks[1:-1]:
         parts.append(f"\x1b_Gm=1;{chunk}\x1b\\")
     parts.append(f"\x1b_Gm=0;{chunks[-1]}\x1b\\")
@@ -244,4 +253,7 @@ def _kitty_escape(data: bytes) -> str:
 
 def _iterm2_escape(data: bytes) -> str:
     payload = base64.standard_b64encode(data).decode("ascii")
-    return f"\x1b]1337;File=inline=1;width=2;height=1;preserveAspectRatio=1:{payload}\x07"
+    return (
+        f"\x1b]1337;File=inline=1;width={_EMOJI_CELLS_W};height={_EMOJI_CELLS_H};"
+        f"preserveAspectRatio=1:{payload}\x07"
+    )

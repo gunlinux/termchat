@@ -101,7 +101,7 @@ For best-effort network paths in `twitch_emotes.py` load methods,
 - `termchat/domain/message.py:27`: replace `field(default_factory=tuple)` with
   `runs: tuple[MessageRun, ...] = ()` (safe — frozen dataclass, immutable tuple).
 
-### TASK-14: Replace `assert` runtime invariant in `emoji_render.py:129`
+### TASK-14: Replace `assert` runtime invariant in `emoji_render.py:129` ✅ DONE
 - `assert self._cache_dir is not None` is stripped under `python -O`.
 - Either raise explicitly, or add `# narrowing: callers guarantee cache_dir set`
   if leaving as a type-narrowing aid.
@@ -109,7 +109,7 @@ For best-effort network paths in `twitch_emotes.py` load methods,
 ### TASK-15: Add docstrings to public parsing entry points
 One-liners for: `load_config`, `parse_privmsg`, `parse_roomstate`, `_map_entry`.
 
-### TASK-16: Name the iTerm2 escape magic numbers
+### TASK-16: Name the iTerm2 escape magic numbers ✅ DONE
 - `emoji_render.py:247`: extract hardcoded `width=2;height=1` into a shared named
   constant (e.g. `_EMOJI_CELLS_W = 2`) used by both the Kitty and iTerm2 escape
   builders to keep them in sync.
