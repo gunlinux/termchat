@@ -1,5 +1,6 @@
+import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 @dataclass(frozen=True)
@@ -25,3 +26,13 @@ class Message:
     timestamp: datetime
     platform: str
     runs: tuple[MessageRun, ...] = ()
+
+    @classmethod
+    def system(cls, text: str) -> "Message":
+        return cls(
+            id=str(uuid.uuid4()),
+            author="system",
+            text=text,
+            timestamp=datetime.now(UTC),
+            platform="system",
+        )

@@ -2,11 +2,10 @@ import asyncio
 import sys
 
 from termchat.domain.message import EmojiRun, Message
+from termchat.infra.emote_cache import EmojiImageCache, default_disk_cache_dir
 from termchat.ui._theme import PLATFORM_ICONS
 from termchat.ui.emoji_render import (
-    EmojiImageCache,
     Protocol,
-    default_disk_cache_dir,
     detect_image_protocol,
     render_run,
 )

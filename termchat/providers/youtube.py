@@ -102,16 +102,6 @@ def _map_entry(entry: dict[str, Any]) -> Message | None:
     )
 
 
-def _system_msg(text: str) -> Message:
-    return Message(
-        id=str(uuid.uuid4()),
-        author="system",
-        text=text,
-        timestamp=datetime.now(UTC),
-        platform="system",
-    )
-
-
 def _next_or_none(it: Iterator[dict[str, Any]]) -> dict[str, Any] | None:
     try:
         return next(it)
@@ -412,13 +402,13 @@ class YouTubeProvider:
             try:
                 chat = await loop.run_in_executor(executor, lambda: self._open_chat(stop))
             except Exception as e:
-                yield _system_msg(f"[youtube] failed to open chat: {e}")
+                yield Message.system(f"[youtube] failed to open chat: {e}")
                 return
             while True:
                 try:
                     entry = await loop.run_in_executor(executor, _next_or_none, chat)
                 except Exception as e:
-                    yield _system_msg(f"[youtube] {e}")
+                    yield Message.system(f"[youtube] {e}")
                     return
                 if entry is None:
                     return

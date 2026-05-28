@@ -121,7 +121,7 @@ async def test_terminal_ui_waits_for_emote_fetch_before_printing():
     """
     import httpx
 
-    from termchat.ui.emoji_render import EmojiImageCache
+    from termchat.infra.emote_cache import EmojiImageCache
 
     class _GatedTransport(httpx.AsyncBaseTransport):
         def __init__(self) -> None:

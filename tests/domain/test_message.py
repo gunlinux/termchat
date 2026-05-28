@@ -49,6 +49,15 @@ def test_message_runs_default_empty():
     assert msg.runs == ()
 
 
+def test_message_system_classmethod():
+    msg = Message.system("provider crashed")
+    assert msg.platform == "system"
+    assert msg.author == "system"
+    assert msg.text == "provider crashed"
+    assert msg.id  # non-empty UUID
+    assert msg.timestamp.tzinfo is not None  # timezone-aware
+
+
 def test_message_runs_round_trip():
     runs: tuple[TextRun | EmojiRun, ...] = (
         TextRun(text="hi "),

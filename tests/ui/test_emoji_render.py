@@ -4,8 +4,8 @@ import os
 import httpx
 
 from termchat.domain.message import EmojiRun, TextRun
+from termchat.infra.emote_cache import EmojiImageCache
 from termchat.ui.emoji_render import (
-    EmojiImageCache,
     detect_image_protocol,
     render_run,
 )
@@ -420,7 +420,7 @@ async def test_disk_cache_mkdir_failure_degrades_to_memory_only(tmp_path):
 
 
 def test_default_disk_cache_dir_honors_xdg(monkeypatch, tmp_path):
-    from termchat.ui.emoji_render import default_disk_cache_dir
+    from termchat.infra.emote_cache import default_disk_cache_dir
 
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
     assert default_disk_cache_dir() == tmp_path / "termchat" / "emotes"

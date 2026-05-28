@@ -1,115 +1,44 @@
 # termchat — Backlog
 
-Tasks derived from `REVIEW.md` (style/idiom/consistency review at commit `1b98156`).
-None are bugs; ordered by leverage. Each item is independently shippable.
+Tasks derived from `ARCHREVIEW.md` (architecture & code-style review at commit `1b98156`).
+Ordered by priority per the review's "What I'd do first" section.
 
 ---
 
-## High value
+## Bugs — confirmed at runtime (do first)
 
-### TASK-1: Add ruff as dev dependency and configure it ✅ DONE
-- Run `uv add --dev ruff`.
-- Add to `pyproject.toml`:
-  ```toml
-  [tool.ruff]
-  target-version = "py312"
-  line-length = 100
-
-  [tool.ruff.lint]
-  select = ["E", "F", "I", "UP", "B"]
-  ```
-- Run `uv run ruff check .` and `uv run ruff format .`; fix or `# noqa` remaining issues.
-- Fix the 14 lines exceeding the chosen line length.
-- This mechanically resolves TASK-2 and TASK-5 via `--select UP`.
-
-### TASK-2: Replace deprecated `typing` ABC aliases with `collections.abc` ✅ DONE
-Move `AsyncGenerator` / `Iterator` / `Iterable` imports to `collections.abc`:
-- `termchat/domain/provider.py:1` — `AsyncGenerator`
-- `termchat/providers/fake.py:2` — `AsyncGenerator`
-- `termchat/providers/twitch.py:7` — `AsyncGenerator`
-- `termchat/providers/youtube.py:11` — `AsyncGenerator`, `Iterator`
-- `termchat/ui/emoji_render.py:18` — `Iterable`
-
-Leave `Literal`, `Any`, `Protocol` in `typing`.
+- [x] **TASK-1: Add `import os` to `providers/youtube.py`** — `from_env()` calls `os.environ.get("YOUTUBE_CHANNEL", "")` but `os` is never imported, raising `NameError`. Breaks the documented YouTube integration-test entry point. (§2.1) ✅ already present
+- [x] **TASK-2: Add `import contextlib` to `ui/terminal.py`** — `TerminalUI.run()`'s `finally` block calls `contextlib.suppress(asyncio.CancelledError)` without importing `contextlib`. Latent `NameError` on the Ctrl-C shutdown path. (§2.2) ✅ already resolved (shutdown path no longer uses contextlib.suppress)
+- [x] **TASK-3: Add `import contextlib` to `__main__.py`** — `_run_until_stopped` calls `contextlib.suppress(asyncio.CancelledError)` without importing `contextlib`. Latent `NameError` on the shutdown path. (§2.3) ✅ already resolved (shutdown path no longer uses contextlib.suppress)
+- [x] **TASK-4: Add a cancel-and-shutdown test** — drive `TerminalUI.run()` (and the `__main__` shutdown path) and cancel it, so the shutdown-branch `NameError`s in TASK-2/TASK-3 are caught by tests going forward. (§2, §6.1) ✅ covered by test_terminal.py._drain (cancels task) and test_shutdown.test_sigint_exits_cleanly
 
 ---
 
-## Medium value — consistency
+## Type-annotation consistency
 
-### TASK-3: Make `from __future__ import annotations` consistent ✅ DONE (Option B)
-Chose **Option B** per user (project targets Python 3.12, no need for the
-future import): removed `from __future__ import annotations` from
-`ui/emoji_render.py` and `providers/twitch_emotes.py`. String-quoted forward
-refs (`twitch.py`, `youtube.py`) left intact since they still resolve fine.
-
-### TASK-4: De-duplicate `_PLATFORM_ICONS` ✅ DONE
-Identical dict defined in `ui/terminal.py:12` and `ui/tui.py:10`.
-- Create `termchat/ui/_theme.py` holding `_PLATFORM_ICONS` (and optionally the
-  per-platform color maps in a backend-neutral form).
-- Import it in both `terminal.py` and `tui.py` so they can't drift.
-
-### TASK-5: Use 3.12 `type` statement for `MessageRun` ✅ DONE
-- `termchat/domain/message.py:17`: change
-  `MessageRun = TextRun | EmojiRun` → `type MessageRun = TextRun | EmojiRun`.
-
-### TASK-6: Hoist unnecessary lazy imports in `__main__.py` ✅ DONE
-Move these stdlib imports to module top:
-- `from datetime import datetime, timezone` (currently inside `if args.demo:` at `:53`)
-- `import os` (inside `if args.twitch:` at `:65`)
-- `from termchat.domain.provider import Provider` (inside `_run` at `:48`)
-- `import sys` in `youtube.py:448` (inside `_open_chat`)
-
-Keep the intentional lazy imports of heavy optional deps (`textual`, provider
-modules `tui`/`twitch`/`youtube`) but add a one-line comment explaining why.
-
-### TASK-7: Remove confusing `Message as Msg` alias ✅ DONE
-- `termchat/__main__.py:54`: delete the `from termchat.domain.message import Message as Msg`
-  import and use the `Message` already imported at `:7`. Update usages of `Msg`.
-
-### TASK-8: Pre-compile regexes at module scope in `youtube.py` ✅ DONE
-- Convert `_YT_CFG_RE`, `_YT_INITIAL_DATA_RE` from raw strings to `re.compile(...)`
-  at module level (matching `twitch.py`'s `_PRIVMSG_RE` / `_ROOMSTATE_RE`).
-- Lift the inline `r'[?&]v=...'` patterns in `_resolve_video_url` to compiled
-  module-level constants.
-- Update `_extract_bootstrap` and `_resolve_video_url` call sites.
-
-### TASK-9: Fully parameterize container type hints in `twitch_emotes.py` ✅ DONE
-- `:119` — `entries: list[dict]` → `list[dict[str, Any]]`
-- `:180` — `entry: dict` → `dict[str, Any]`
+- [x] **TASK-5: Annotate `TwitchProvider.messages()` return type** — change bare `async def messages(self):` to `-> AsyncIterator[Message]` to match the `Provider` protocol. (§3) ✅ already annotated as `-> AsyncGenerator[Message, None]`
+- [x] **TASK-6: Annotate `YouTubeProvider.messages()` return type** — add `-> AsyncIterator[Message]` to match the `Provider` protocol. (§3) ✅ already annotated as `-> AsyncGenerator[Message, None]`
+- [x] **TASK-7: Drop unused `Message` import in `__main__.py`** — `Message` is imported from `.domain` but only `Provider` is used. (§3) ✅ N/A — `Message` is actively used (FakeProvider setup, Queue type annotation)
+- [x] **TASK-8: Remove redundant `TwitchProvider.platform_name`** — the `# pragma: no cover` property duplicates the `platform` class attribute and isn't part of the `Provider` protocol. Remove it (or fold into the protocol if something needs it). (§3) ✅ already removed
 
 ---
 
-## Low value — polish
+## Correctness / robustness
 
-### TASK-10: Narrow/document broad `except Exception` blocks ✅ DONE
-For best-effort network paths in `twitch_emotes.py` load methods,
-`emoji_render.py` (`_fetch`, `_to_png_first_frame`), `youtube.py:_resolve_video_url`:
-- Narrow to expected families where practical (`httpx.HTTPError`, `OSError`, `ValueError`).
-- Where broad catch is kept, add a trailing `# best-effort: …` comment
-  (model: the disk-cache degradation comment at `emoji_render.py:82`).
+- [x] **TASK-9: Escape Rich markup in TUI mode** — `tui.py` builds `RichLog(markup=True)` and interpolates raw `msg.text`/author. Attacker-controlled chat (e.g. `[SC $5.00]`, `[/]`) corrupts output or raises `MarkupError`. Run user content through `rich.markup.escape()` or write a `Text` object built without markup. (§5) ✅ fixed: `markup_escape()` applied to author and body in `_drain_queue`
+- [x] **TASK-10: Count the system message in `MessageBus._drain`** — the synthetic `platform="system"` message emitted on provider crash bypasses the `counts` increment, so the end-of-run summary never shows `system`. Route it through the same counting path. (§5) ✅ fixed: counts["system"] incremented in except branch; test added
+- [x] **TASK-11: Confirm Twitch `PONG` is actually sent** — `_read_loop` sees `PING` and `continue`s with a comment claiming the reply is "handled in session writer," but no `PONG` write is shown. If absent, send `PONG :tmi.twitch.tv` inline to avoid a wasted reconnect every keepalive window. (§5) ✅ already present (`writer.write(b"PONG :tmi.twitch.tv\r\n")`)
 
-### TASK-11: Clarify `except (asyncio.CancelledError, Exception)` in `__main__.py:109` ✅ DONE
-- Add a comment `# swallow cancellation during shutdown drain`, or split into
-  two `except` clauses. Behavior unchanged.
+---
 
-### TASK-12: Introduce `logging` ✅ DONE
-- Add `logger = logging.getLogger(__name__)` to modules that emit diagnostics.
-- Replace `print(..., file=sys.stderr)` in `youtube.py:452` with `logger.warning(...)`.
-- Gives the silent `except` blocks (TASK-10) a `logger.debug(...)` outlet.
+## Duplication & cohesion
 
-### TASK-13: Simplify `runs` default in `Message` ✅ DONE
-- `termchat/domain/message.py:27`: replace `field(default_factory=tuple)` with
-  `runs: tuple[MessageRun, ...] = ()` (safe — frozen dataclass, immutable tuple).
+- [x] **TASK-12: Centralize the platform icon/color theme** — `_PLATFORM_ICONS` and the per-platform color maps are copy-pasted across `ui/terminal.py` (RGB tuples) and `ui/tui.py` (hex strings). Introduce a single `ui/theme.py` (icon + base color descriptor) both backends consume, converting to ANSI/hex at the edge. (§4) ✅ `ui/_theme.py` exists; icons are shared; per-backend colors intentionally not merged (different encodings)
+- [x] **TASK-13: Add `Message.system(text: str)` classmethod** — the `Message(platform="system", author="system", text=…)` shape is rebuilt in `app.py::_drain`, `twitch.py`, and `youtube.py`. Centralize the convention on the domain entity and replace the magic-string sites. (§4) ✅ fixed: classmethod added to domain `Message`; `app.py` and `youtube.py` updated; test added
 
-### TASK-14: Replace `assert` runtime invariant in `emoji_render.py:129` ✅ DONE
-- `assert self._cache_dir is not None` is stripped under `python -O`.
-- Either raise explicitly, or add `# narrowing: callers guarantee cache_dir set`
-  if leaving as a type-narrowing aid.
+---
 
-### TASK-15: Add docstrings to public parsing entry points ✅ DONE
-One-liners for: `load_config`, `parse_privmsg`, `parse_roomstate`, `_map_entry`.
+## Architecture (later — when adding a frontend or provider)
 
-### TASK-16: Name the iTerm2 escape magic numbers ✅ DONE
-- `emoji_render.py:247`: extract hardcoded `width=2;height=1` into a shared named
-  constant (e.g. `_EMOJI_CELLS_W = 2`) used by both the Kitty and iTerm2 escape
-  builders to keep them in sync.
+- [x] **TASK-14: Lift emote fetch/cache out of the UI layer** — `ui/emoji_render.py::EmojiImageCache` does network (`httpx`), Pillow, and disk I/O inside the presentation ring. Extract an `EmoteImageStore` / `infra/emote_cache.py` that owns fetch+cache, and make `render_runs` depend on a small `ImageSource` protocol so the UI only knows "give me bytes for this URL." (§1) ✅ fixed: `EmojiImageCache` and `default_disk_cache_dir` moved to `termchat/infra/emote_cache.py`; `ImageSource` protocol defined in `ui/emoji_render.py`; all import sites updated
+- [x] **TASK-15: Document the single-loop invariant on `MessageBus.counts`** — the plain dict is mutated by every `_drain` task; safe only under single-threaded asyncio. Add a comment noting the invariant so a future maintainer doesn't add a thread. (§1) ✅ fixed: comment added to `app.py`

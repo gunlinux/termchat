@@ -1,13 +1,14 @@
 import asyncio
 
+from rich.markup import escape as markup_escape
 from textual.app import App, ComposeResult
 from textual.widgets import Footer, RichLog
 
 from termchat.app import MessageBus
 from termchat.domain.message import Message
+from termchat.infra.emote_cache import EmojiImageCache
 from termchat.ui._theme import PLATFORM_ICONS
 from termchat.ui.emoji_render import (
-    EmojiImageCache,
     Protocol,
     detect_image_protocol,
     render_run,
@@ -62,8 +63,8 @@ class TermchatApp(App[None]):
             author_color = _AUTHOR_COLORS.get(msg.platform, "cyan")
             icon = PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
             platform_tag = f"[bold {color}]{icon}[/bold {color}]"
-            author = msg.author.ljust(_AUTHOR_WIDTH)[:_AUTHOR_WIDTH]
-            body = self._render_body(msg)
+            author = markup_escape(msg.author.ljust(_AUTHOR_WIDTH)[:_AUTHOR_WIDTH])
+            body = markup_escape(self._render_body(msg))
             log.write(f"{platform_tag} [bold {author_color}]{author}[/bold {author_color}] {body}")
 
     def _render_body(self, msg: Message) -> str:

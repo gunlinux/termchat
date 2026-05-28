@@ -84,6 +84,13 @@ async def test_failing_provider_does_not_kill_other_providers():
     assert "boom" in system[0].text
 
 
+async def test_failing_provider_counts_system_message():
+    queue: asyncio.Queue[Message] = asyncio.Queue()
+    bus = MessageBus([_ErrorProvider(RuntimeError("boom"))], queue)
+    await bus.run()
+    assert bus.counts.get("system", 0) == 1
+
+
 async def test_failing_provider_logs_class_name():
     queue: asyncio.Queue[Message] = asyncio.Queue()
     bus = MessageBus([_ErrorProvider(ValueError("bad value"))], queue)
