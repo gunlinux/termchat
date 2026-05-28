@@ -7,7 +7,7 @@ data in the IRC `emotes=` tag and are merged in by `twitch.py` separately.
 import asyncio
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import httpx
 
@@ -112,7 +112,7 @@ class TwitchEmoteRegistry:
             )
             resp.raise_for_status()
             user = (resp.json().get("data") or {}).get("user") or {}
-            entries: list[dict] = []
+            entries: list[dict[str, Any]] = []
             for product in user.get("subscriptionProducts") or []:
                 entries.extend(product.get("emotes") or [])
             channel = user.get("channel") or {}
@@ -172,7 +172,7 @@ class TwitchEmoteRegistry:
         except Exception:
             pass
 
-    def _ingest_bttv(self, entry: dict, source: Source) -> None:
+    def _ingest_bttv(self, entry: dict[str, Any], source: Source) -> None:
         code = entry.get("code")
         eid = entry.get("id")
         if not code or not eid:

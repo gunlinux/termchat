@@ -73,7 +73,7 @@ modules `tui`/`twitch`/`youtube`) but add a one-line comment explaining why.
   module-level constants.
 - Update `_extract_bootstrap` and `_resolve_video_url` call sites.
 
-### TASK-9: Fully parameterize container type hints in `twitch_emotes.py`
+### TASK-9: Fully parameterize container type hints in `twitch_emotes.py` ✅ DONE
 - `:119` — `entries: list[dict]` → `list[dict[str, Any]]`
 - `:180` — `entry: dict` → `dict[str, Any]`
 
