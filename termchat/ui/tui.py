@@ -5,19 +5,13 @@ from textual.widgets import Footer, RichLog
 
 from termchat.app import MessageBus
 from termchat.domain.message import Message
+from termchat.ui._theme import PLATFORM_ICONS
 from termchat.ui.emoji_render import (
     EmojiImageCache,
     Protocol,
     detect_image_protocol,
     render_run,
 )
-
-_PLATFORM_ICONS: dict[str, str] = {
-    "twitch": "",  # Nerd Font nf-fa-twitch
-    "youtube": "",  # Nerd Font nf-fa-youtube
-    "fake": "◉",
-    "system": "⚙",
-}
 
 _PLATFORM_COLORS: dict[str, str] = {
     "twitch": "rgb(145,70,255)",
@@ -66,7 +60,7 @@ class TermchatApp(App[None]):
             self._queue.task_done()
             color = _PLATFORM_COLORS.get(msg.platform, "white")
             author_color = _AUTHOR_COLORS.get(msg.platform, "cyan")
-            icon = _PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
+            icon = PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
             platform_tag = f"[bold {color}]{icon}[/bold {color}]"
             author = msg.author.ljust(_AUTHOR_WIDTH)[:_AUTHOR_WIDTH]
             body = self._render_body(msg)

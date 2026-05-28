@@ -2,6 +2,7 @@ import asyncio
 import sys
 
 from termchat.domain.message import EmojiRun, Message
+from termchat.ui._theme import PLATFORM_ICONS
 from termchat.ui.emoji_render import (
     EmojiImageCache,
     Protocol,
@@ -9,13 +10,6 @@ from termchat.ui.emoji_render import (
     detect_image_protocol,
     render_run,
 )
-
-_PLATFORM_ICONS: dict[str, str] = {
-    "twitch": "",  # Nerd Font nf-fa-twitch
-    "youtube": "",  # Nerd Font nf-fa-youtube
-    "fake": "◉",
-    "system": "⚙",
-}
 
 # ANSI color applied to the platform icon
 _PLATFORM_ANSI: dict[str, str] = {
@@ -57,7 +51,7 @@ class TerminalUI:
                 # cached — avoids the "first occurrence is :shortcode:" flash.
                 await self._prefetch_emote_images(msg)
                 body = self._render_body(msg)
-                icon = _PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
+                icon = PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
                 p_ansi = _PLATFORM_ANSI.get(msg.platform, "")
                 a_ansi = _AUTHOR_ANSI.get(msg.platform, "")
                 sys.stdout.write(f"{p_ansi}{icon}{_RESET} {a_ansi}{msg.author}{_RESET}: {body}\n")

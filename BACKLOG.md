@@ -42,7 +42,7 @@ future import): removed `from __future__ import annotations` from
 `ui/emoji_render.py` and `providers/twitch_emotes.py`. String-quoted forward
 refs (`twitch.py`, `youtube.py`) left intact since they still resolve fine.
 
-### TASK-4: De-duplicate `_PLATFORM_ICONS`
+### TASK-4: De-duplicate `_PLATFORM_ICONS` ✅ DONE
 Identical dict defined in `ui/terminal.py:12` and `ui/tui.py:10`.
 - Create `termchat/ui/_theme.py` holding `_PLATFORM_ICONS` (and optionally the
   per-platform color maps in a backend-neutral form).
