@@ -1,4 +1,6 @@
 import asyncio
+import uuid
+from datetime import datetime, timezone
 
 from termchat.domain.message import Message
 from termchat.domain.provider import Provider
@@ -20,6 +22,15 @@ class MessageBus:
                 tg.create_task(self._drain(provider))
 
     async def _drain(self, provider: Provider) -> None:
-        async for msg in provider.messages():
-            self._counts[msg.platform] = self._counts.get(msg.platform, 0) + 1
-            await self._queue.put(msg)
+        try:
+            async for msg in provider.messages():
+                self._counts[msg.platform] = self._counts.get(msg.platform, 0) + 1
+                await self._queue.put(msg)
+        except Exception as e:
+            await self._queue.put(Message(
+                id=str(uuid.uuid4()),
+                author="system",
+                text=f"[{type(provider).__name__}] error: {e}",
+                timestamp=datetime.now(timezone.utc),
+                platform="system",
+            ))

@@ -11,6 +11,7 @@ _PLATFORM_COLORS: dict[str, str] = {
     "twitch": "medium_purple",
     "youtube": "red",
     "fake": "green",
+    "system": "dark_orange",
 }
 _AUTHOR_WIDTH = 20
 
