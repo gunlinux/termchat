@@ -66,7 +66,7 @@ modules `tui`/`twitch`/`youtube`) but add a one-line comment explaining why.
 - `termchat/__main__.py:54`: delete the `from termchat.domain.message import Message as Msg`
   import and use the `Message` already imported at `:7`. Update usages of `Msg`.
 
-### TASK-8: Pre-compile regexes at module scope in `youtube.py`
+### TASK-8: Pre-compile regexes at module scope in `youtube.py` ✅ DONE
 - Convert `_YT_CFG_RE`, `_YT_INITIAL_DATA_RE` from raw strings to `re.compile(...)`
   at module level (matching `twitch.py`'s `_PRIVMSG_RE` / `_ROOMSTATE_RE`).
 - Lift the inline `r'[?&]v=...'` patterns in `_resolve_video_url` to compiled

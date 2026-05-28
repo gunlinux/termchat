@@ -118,11 +118,16 @@ def _next_or_none(it: Iterator[dict[str, Any]]) -> dict[str, Any] | None:
 
 # --- Native YouTube live chat poller (replaces unmaintained chat_downloader 0.2.8) ---
 
-_YT_INITIAL_DATA_RE = (
+_YT_INITIAL_DATA_RE = re.compile(
     r'(?:window\s*\[\s*["\']ytInitialData["\']\s*\]|ytInitialData)\s*=\s*'
     r"({.+?})\s*;\s*(?:var\s+(?:meta|head)|</script|\n)"
 )
-_YT_CFG_RE = r"ytcfg\.set\s*\(\s*({.+?})\s*\)\s*;"
+_YT_CFG_RE = re.compile(r"ytcfg\.set\s*\(\s*({.+?})\s*\)\s*;")
+# Extracts the 11-char video id from a `?v=`/`&v=` query parameter.
+_YT_VIDEO_ID_RE = re.compile(r"[?&]v=([A-Za-z0-9_-]{11})")
+_YT_CANONICAL_RE = re.compile(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']')
+_YT_OG_URL_RE = re.compile(r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\']([^"\']+)["\']')
+_YT_VIDEO_ID_JSON_RE = re.compile(r'"videoId"\s*:\s*"([A-Za-z0-9_-]{11})"')
 _DEFAULT_UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -175,7 +180,7 @@ def _extract_continuation(
 
 
 def _extract_bootstrap(html: str) -> tuple[str, dict[str, Any], str]:
-    m_cfg = re.search(_YT_CFG_RE, html)
+    m_cfg = _YT_CFG_RE.search(html)
     if not m_cfg:
         raise _YouTubeBootstrapError("Unable to parse initial video data")
     try:
@@ -188,7 +193,7 @@ def _extract_bootstrap(html: str) -> tuple[str, dict[str, Any], str]:
     if not api_key or not isinstance(ctx, dict):
         raise _YouTubeBootstrapError("Unable to parse initial video data")
 
-    m_id = re.search(_YT_INITIAL_DATA_RE, html)
+    m_id = _YT_INITIAL_DATA_RE.search(html)
     if not m_id:
         raise _YouTubeBootstrapError("Unable to parse initial video data")
     try:
@@ -428,26 +433,26 @@ class YouTubeProvider:
         )
         try:
             with urllib.request.urlopen(req, timeout=10) as resp:
-                m = re.search(r"[?&]v=([A-Za-z0-9_-]{11})", resp.url)
+                m = _YT_VIDEO_ID_RE.search(resp.url)
                 if m:
                     return f"https://www.youtube.com/watch?v={m.group(1)}"
                 html = resp.read().decode("utf-8", errors="ignore")
         except Exception:
             return None
 
-        m = re.search(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', html)
+        m = _YT_CANONICAL_RE.search(html)
         if m and "watch?v=" in m.group(1):
-            vid = re.search(r"[?&]v=([A-Za-z0-9_-]{11})", m.group(1))
+            vid = _YT_VIDEO_ID_RE.search(m.group(1))
             if vid:
                 return f"https://www.youtube.com/watch?v={vid.group(1)}"
 
-        m = re.search(r'<meta[^>]+property=["\']og:url["\'][^>]+content=["\']([^"\']+)["\']', html)
+        m = _YT_OG_URL_RE.search(html)
         if m and "watch?v=" in m.group(1):
-            vid = re.search(r"[?&]v=([A-Za-z0-9_-]{11})", m.group(1))
+            vid = _YT_VIDEO_ID_RE.search(m.group(1))
             if vid:
                 return f"https://www.youtube.com/watch?v={vid.group(1)}"
 
-        m = re.search(r'"videoId"\s*:\s*"([A-Za-z0-9_-]{11})"', html)
+        m = _YT_VIDEO_ID_JSON_RE.search(html)
         if m:
             return f"https://www.youtube.com/watch?v={m.group(1)}"
 
