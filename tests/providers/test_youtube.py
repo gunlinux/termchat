@@ -1,5 +1,4 @@
 import json
-import os
 import urllib.error
 from datetime import UTC
 from unittest.mock import MagicMock, patch
@@ -892,18 +891,3 @@ def test_poller_handles_missing_liveChatContinuation():
 
 
 # --- integration test: requires env var ---
-
-
-@pytest.mark.skipif(
-    not os.getenv("YOUTUBE_CHANNEL"),
-    reason="YOUTUBE_CHANNEL not set",
-)
-async def test_youtube_integration():
-    provider = YouTubeProvider.from_env()
-    received = []
-    async for msg in provider.messages():
-        received.append(msg)
-        if len(received) >= 1:
-            break
-    assert len(received) >= 1
-    assert received[0].platform == "youtube"

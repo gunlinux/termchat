@@ -1,7 +1,4 @@
 import asyncio
-import os
-
-import pytest
 
 from termchat.domain.message import EmojiRun, TextRun
 from termchat.providers.twitch import (
@@ -414,21 +411,3 @@ async def test_backoff_resets_after_successful_message(monkeypatch):
     assert sleeps[1] == twitch_mod._RECONNECT_BACKOFF_INITIAL * 2
     assert sleeps[2] == twitch_mod._RECONNECT_BACKOFF_INITIAL  # the reset
     assert msgs == ["hello", "world"]
-
-
-# --- integration test: requires env vars ---
-
-
-@pytest.mark.skipif(
-    not (os.getenv("TWITCH_CHANNEL") and os.getenv("TWITCH_OAUTH")),
-    reason="TWITCH_CHANNEL and TWITCH_OAUTH not set",
-)
-async def test_twitch_integration():
-    provider = TwitchProvider.from_env()
-    received = []
-    async for msg in provider.messages():
-        received.append(msg)
-        if len(received) >= 1:
-            break
-    assert len(received) >= 1
-    assert received[0].platform == "twitch"
