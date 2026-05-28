@@ -18,6 +18,14 @@ _ROOMSTATE_RE = re.compile(
 _TAG_ESCAPES = {":": ";", "s": " ", "\\": "\\", "r": "\r", "n": "\n"}
 _HOST = "irc.chat.twitch.tv"
 _PORT = 6667
+# Twitch server PINGs every ~5 minutes. If we go this long without ANY traffic
+# (PING, chat, or otherwise) the connection is almost certainly dead — NAT
+# rebinding, route flap, dropped wifi — and TCP won't tell us for many minutes.
+_READ_TIMEOUT = 360.0
+# Reconnect backoff: 1s → 2s → 4s → … → 60s cap. Reset to 1s on the first
+# successful message of a fresh session.
+_RECONNECT_BACKOFF_INITIAL = 1.0
+_RECONNECT_BACKOFF_MAX = 60.0
 
 
 def _unescape_tag_value(v: str) -> str:
@@ -143,6 +151,35 @@ class TwitchProvider:
         return cls(channel, oauth)
 
     async def messages(self) -> AsyncIterator[Message]:
+        """Yield messages forever, reconnecting on disconnect or stale link.
+
+        Each call to `_read_session()` is one TCP connection's lifetime — it
+        ends on graceful server close, network error, or read timeout (no
+        traffic in `_READ_TIMEOUT` seconds). Any of those falls through to
+        the reconnect loop with exponential backoff.
+
+        Backoff resets to the initial value as soon as a fresh session
+        delivers its first message — so brief drops don't ratchet the wait up
+        forever, but a server-side ban-loop will throttle politely.
+        """
+        backoff = _RECONNECT_BACKOFF_INITIAL
+        while True:
+            try:
+                async for msg in self._read_session():
+                    backoff = _RECONNECT_BACKOFF_INITIAL
+                    yield msg
+                # Generator returned cleanly → server closed; reconnect.
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # Network failure, TimeoutError, ConnectionResetError,
+                # OSError from open_connection — all retryable.
+                pass
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, _RECONNECT_BACKOFF_MAX)
+
+    async def _read_session(self) -> AsyncIterator[Message]:
+        """One IRC connection's lifetime. Returns when the connection drops."""
         reader, writer = await asyncio.open_connection(_HOST, _PORT)
         registry = TwitchEmoteRegistry()
         global_task: asyncio.Task[None] = asyncio.create_task(registry.load_global())
@@ -161,9 +198,11 @@ class TwitchProvider:
             await writer.drain()
 
             while True:
-                raw = await reader.readline()
+                # wait_for raises TimeoutError if the connection goes silent;
+                # the outer reconnect loop catches that and re-establishes.
+                raw = await asyncio.wait_for(reader.readline(), timeout=_READ_TIMEOUT)
                 if not raw:
-                    break
+                    return  # peer closed the connection cleanly
                 line = raw.decode(errors="replace")
 
                 if line.startswith("PING"):
@@ -188,4 +227,9 @@ class TwitchProvider:
                 channel_task.cancel()
             await registry.aclose()
             writer.close()
-            await writer.wait_closed()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                # Already-broken socket may raise on close; we're tearing
+                # down anyway, the reconnect loop will open a fresh one.
+                pass

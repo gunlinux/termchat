@@ -1,4 +1,6 @@
+import asyncio
 import os
+
 import pytest
 
 from termchat.domain.message import EmojiRun, TextRun
@@ -235,6 +237,179 @@ def test_parse_privmsg_with_emotes_produces_runs():
         ),
         TextRun(text=" hello"),
     )
+
+
+# --- reconnect behavior ---
+
+class _FakeReader:
+    """Async stream reader stub. `lines` queue feeds readline()."""
+
+    def __init__(self, lines: list[bytes]) -> None:
+        self._lines = list(lines)
+
+    async def readline(self) -> bytes:
+        if not self._lines:
+            return b""  # peer closed
+        item = self._lines.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+
+class _FakeWriter:
+    def __init__(self) -> None:
+        self.written: list[bytes] = []
+        self.closed = False
+
+    def write(self, data: bytes) -> None:
+        self.written.append(data)
+
+    async def drain(self) -> None:
+        return None
+
+    def close(self) -> None:
+        self.closed = True
+
+    async def wait_closed(self) -> None:
+        return None
+
+
+async def test_reconnects_after_clean_server_disconnect(monkeypatch):
+    """First session ends with empty readline (peer closed). Provider must
+    open a second connection and continue yielding."""
+    from termchat.providers import twitch as twitch_mod
+
+    sessions: list[tuple[_FakeReader, _FakeWriter]] = []
+
+    def _session_factory(lines: list[bytes]) -> tuple[_FakeReader, _FakeWriter]:
+        r, w = _FakeReader(lines), _FakeWriter()
+        sessions.append((r, w))
+        return r, w
+
+    # Session 1: one PRIVMSG, then EOF. Session 2: another PRIVMSG, then EOF.
+    line_session_1 = b":alice!alice@alice.tmi.twitch.tv PRIVMSG #ch :first\r\n"
+    line_session_2 = b":bob!bob@bob.tmi.twitch.tv PRIVMSG #ch :second\r\n"
+
+    calls = {"count": 0}
+
+    async def fake_open_connection(host, port):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return _session_factory([line_session_1])
+        if calls["count"] == 2:
+            return _session_factory([line_session_2])
+        # Third call: hang forever so the test can break after receiving 2 msgs
+        return _session_factory([])
+
+    async def fake_sleep(_seconds):
+        return None  # skip the backoff in test
+
+    monkeypatch.setattr(twitch_mod.asyncio, "open_connection", fake_open_connection)
+    monkeypatch.setattr(twitch_mod.asyncio, "sleep", fake_sleep)
+
+    provider = TwitchProvider("ch")
+    received = []
+    async for msg in provider.messages():
+        received.append(msg.text)
+        if len(received) == 2:
+            break
+
+    assert received == ["first", "second"]
+    assert calls["count"] >= 2  # at least two reconnects observed
+    # Session 1's connection should have been closed via the finally path
+    # when readline returned b"" (clean disconnect). Session 2's finally has
+    # not necessarily run yet — `async for ... break` doesn't deterministically
+    # `aclose()` the generator; that happens on GC.
+    assert sessions[0][1].closed
+
+
+async def test_reconnects_after_read_timeout(monkeypatch):
+    """If readline hangs past `_READ_TIMEOUT`, wait_for raises TimeoutError
+    and the provider reconnects."""
+    from termchat.providers import twitch as twitch_mod
+
+    open_calls = {"count": 0}
+
+    async def fake_open_connection(host, port):
+        open_calls["count"] += 1
+        if open_calls["count"] == 1:
+            # First session: readline never returns → simulate timeout
+            class _HangReader:
+                async def readline(self):
+                    await asyncio.sleep(3600)
+                    return b""
+            return _HangReader(), _FakeWriter()
+        # Second session: deliver a message
+        line = b":bob!bob@bob.tmi.twitch.tv PRIVMSG #ch :after-reconnect\r\n"
+        return _FakeReader([line]), _FakeWriter()
+
+    async def fake_wait_for(coro, timeout):
+        # Force the timeout path on the first session, pass-through later
+        if open_calls["count"] == 1:
+            coro.close()
+            raise TimeoutError()
+        return await coro
+
+    async def fake_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(twitch_mod.asyncio, "open_connection", fake_open_connection)
+    monkeypatch.setattr(twitch_mod.asyncio, "wait_for", fake_wait_for)
+    monkeypatch.setattr(twitch_mod.asyncio, "sleep", fake_sleep)
+
+    provider = TwitchProvider("ch")
+    async for msg in provider.messages():
+        assert msg.text == "after-reconnect"
+        break
+
+    assert open_calls["count"] == 2
+
+
+async def test_backoff_resets_after_successful_message(monkeypatch):
+    """Backoff should drop to the initial value once a fresh session yields
+    a message — otherwise long-running clients with occasional drops would
+    ratchet the wait up indefinitely."""
+    from termchat.providers import twitch as twitch_mod
+
+    sleeps: list[float] = []
+    open_calls = {"count": 0}
+
+    def _line(text: str) -> bytes:
+        return f":a!a@a.tmi.twitch.tv PRIVMSG #ch :{text}\r\n".encode()
+
+    async def fake_open_connection(host, port):
+        open_calls["count"] += 1
+        # Sessions 1+2: empty (force backoff escalation 1.0 → 2.0)
+        if open_calls["count"] <= 2:
+            return _FakeReader([]), _FakeWriter()
+        # Session 3: a message (resets backoff)
+        if open_calls["count"] == 3:
+            return _FakeReader([_line("hello")]), _FakeWriter()
+        # Session 4: another message so the test can break and observe the
+        # backoff value used between sessions 3 and 4.
+        return _FakeReader([_line("world")]), _FakeWriter()
+
+    async def fake_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(twitch_mod.asyncio, "open_connection", fake_open_connection)
+    monkeypatch.setattr(twitch_mod.asyncio, "sleep", fake_sleep)
+
+    provider = TwitchProvider("ch")
+    msgs = []
+    async for msg in provider.messages():
+        msgs.append(msg.text)
+        if len(msgs) == 2:
+            break
+
+    # Sleeps:
+    #   [0] after session1 EOF = INITIAL
+    #   [1] after session2 EOF = INITIAL * 2  (escalated)
+    #   [2] after session3 ended (one msg already received → reset) = INITIAL
+    assert sleeps[0] == twitch_mod._RECONNECT_BACKOFF_INITIAL
+    assert sleeps[1] == twitch_mod._RECONNECT_BACKOFF_INITIAL * 2
+    assert sleeps[2] == twitch_mod._RECONNECT_BACKOFF_INITIAL  # the reset
+    assert msgs == ["hello", "world"]
 
 
 # --- integration test: requires env vars ---

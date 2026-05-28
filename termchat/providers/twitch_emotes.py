@@ -15,13 +15,26 @@ import httpx
 
 from termchat.domain.message import EmojiRun, MessageRun, TextRun
 
-Source = Literal["bttv-global", "bttv-channel", "7tv-channel"]
+Source = Literal["bttv-global", "bttv-channel", "7tv-channel", "twitch-channel"]
 
 _PRIORITY: dict[Source, int] = {
     "bttv-global": 1,
     "7tv-channel": 2,
     "bttv-channel": 3,
+    "twitch-channel": 4,
 }
+
+# Public web client ID, sent by the Twitch website on its own GQL calls.
+# It is the only way to reach `localEmoteSets` (follower-only / native channel
+# emotes) without an OAuth token — Helix requires auth for the equivalent.
+_TWITCH_GQL_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"
+_TWITCH_GQL_URL = "https://gql.twitch.tv/gql"
+_TWITCH_GQL_QUERY = (
+    "query($id: ID!) { user(id: $id) {"
+    " subscriptionProducts { emotes { id token } }"
+    " channel { localEmoteSets { emotes { id token } } }"
+    " } }"
+)
 
 _WS_SPLIT = re.compile(r"(\s+)")
 
@@ -90,7 +103,42 @@ class TwitchEmoteRegistry:
         await asyncio.gather(
             self._load_bttv_channel(room_id),
             self._load_7tv_channel(room_id),
+            self._load_twitch_channel(room_id),
         )
+
+    async def _load_twitch_channel(self, room_id: str) -> None:
+        client = await self._get_client()
+        try:
+            resp = await client.post(
+                _TWITCH_GQL_URL,
+                json={"query": _TWITCH_GQL_QUERY, "variables": {"id": room_id}},
+                headers={"Client-Id": _TWITCH_GQL_CLIENT_ID},
+            )
+            resp.raise_for_status()
+            user = (resp.json().get("data") or {}).get("user") or {}
+            entries: list[dict] = []
+            for product in user.get("subscriptionProducts") or []:
+                entries.extend(product.get("emotes") or [])
+            channel = user.get("channel") or {}
+            for emote_set in channel.get("localEmoteSets") or []:
+                entries.extend(emote_set.get("emotes") or [])
+            for entry in entries:
+                name = entry.get("token")
+                eid = entry.get("id")
+                if not name or not eid:
+                    continue
+                self._add(
+                    EmoteInfo(
+                        name=name,
+                        image_url=(
+                            f"https://static-cdn.jtvnw.net/emoticons/v2/{eid}"
+                            "/static/dark/2.0"
+                        ),
+                        source="twitch-channel",
+                    )
+                )
+        except Exception:
+            pass
 
     async def _load_bttv_channel(self, room_id: str) -> None:
         client = await self._get_client()
@@ -117,10 +165,12 @@ class TwitchEmoteRegistry:
                 eid = entry.get("id")
                 if not name or not eid:
                     continue
+                # 7TV's CDN serves webp/avif/gif but not png; Pillow normalizes
+                # whatever bytes we get to a static-PNG first frame downstream.
                 self._add(
                     EmoteInfo(
                         name=name,
-                        image_url=f"https://cdn.7tv.app/emote/{eid}/2x.png",
+                        image_url=f"https://cdn.7tv.app/emote/{eid}/2x.webp",
                         source="7tv-channel",
                     )
                 )

@@ -7,3 +7,6 @@ dist/
 build/
 *.egg-info/
 .env
+# Emote disk cache (defaults to ~/.cache/termchat/emotes — ignore a local
+# .cache/ in case anyone points cache_dir at a path inside the repo).
+.cache/

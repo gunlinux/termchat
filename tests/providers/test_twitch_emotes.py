@@ -123,7 +123,7 @@ async def test_load_global_hits_bttv_global_endpoint():
     await r.aclose()
 
 
-async def test_load_channel_hits_both_bttv_and_7tv():
+async def test_load_channel_hits_bttv_7tv_and_twitch_gql():
     room_id = "12345"
     transport = _RecordingTransport({
         f"https://api.betterttv.net/3/cached/users/twitch/{room_id}": {
@@ -133,6 +133,21 @@ async def test_load_channel_hits_both_bttv_and_7tv():
         f"https://7tv.io/v3/users/twitch/{room_id}": {
             "emote_set": {
                 "emotes": [{"id": "stv1", "name": "PepoG"}]
+            }
+        },
+        "https://gql.twitch.tv/gql": {
+            "data": {
+                "user": {
+                    "subscriptionProducts": [
+                        {"emotes": [{"id": "sub1", "token": "chanSub"}]},
+                        {"emotes": []},
+                    ],
+                    "channel": {
+                        "localEmoteSets": [
+                            {"emotes": [{"id": "local1", "token": "chanLocal"}]}
+                        ]
+                    },
+                }
             }
         },
     })
@@ -147,14 +162,47 @@ async def test_load_channel_hits_both_bttv_and_7tv():
     assert r.lookup("SharedEmote") is not None
     assert r.lookup("PepoG") == EmoteInfo(
         name="PepoG",
-        image_url="https://cdn.7tv.app/emote/stv1/2x.png",
+        image_url="https://cdn.7tv.app/emote/stv1/2x.webp",
         source="7tv-channel",
+    )
+    assert r.lookup("chanSub") == EmoteInfo(
+        name="chanSub",
+        image_url="https://static-cdn.jtvnw.net/emoticons/v2/sub1/static/dark/2.0",
+        source="twitch-channel",
+    )
+    assert r.lookup("chanLocal") == EmoteInfo(
+        name="chanLocal",
+        image_url="https://static-cdn.jtvnw.net/emoticons/v2/local1/static/dark/2.0",
+        source="twitch-channel",
     )
     assert (
         f"https://api.betterttv.net/3/cached/users/twitch/{room_id}"
         in transport.calls
     )
     assert f"https://7tv.io/v3/users/twitch/{room_id}" in transport.calls
+    assert "https://gql.twitch.tv/gql" in transport.calls
+    await r.aclose()
+
+
+async def test_twitch_channel_emotes_win_collisions_over_3p():
+    room_id = "12345"
+    transport = _RecordingTransport({
+        f"https://api.betterttv.net/3/cached/users/twitch/{room_id}": {
+            "channelEmotes": [{"id": "bttv1", "code": "collide"}],
+        },
+        f"https://7tv.io/v3/users/twitch/{room_id}": {},
+        "https://gql.twitch.tv/gql": {
+            "data": {"user": {"channel": {"localEmoteSets": [
+                {"emotes": [{"id": "twid", "token": "collide"}]}
+            ]}}}
+        },
+    })
+    client = httpx.AsyncClient(transport=transport)
+    r = TwitchEmoteRegistry(client=client)
+    await r.load_channel(room_id)
+    info = r.lookup("collide")
+    assert info is not None
+    assert info.source == "twitch-channel"
     await r.aclose()
 
 
