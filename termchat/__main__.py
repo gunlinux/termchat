@@ -1,11 +1,13 @@
 import argparse
 import asyncio
+import os
 import signal
 import sys
-from datetime import UTC
+from datetime import UTC, datetime
 
 from termchat.app import MessageBus
 from termchat.domain.message import Message
+from termchat.domain.provider import Provider
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -46,18 +48,13 @@ def _print_summary(bus: MessageBus) -> None:
 
 
 async def _run(args: argparse.Namespace) -> None:
-    from termchat.domain.provider import Provider
-
     providers: list[Provider] = []
 
     if args.demo:
-        from datetime import datetime
-
-        from termchat.domain.message import Message as Msg
         from termchat.providers.fake import FakeProvider
 
         fake_msgs = [
-            Msg(
+            Message(
                 id=str(i),
                 author="demo_user",
                 text=f"Demo message {i}",
@@ -69,13 +66,13 @@ async def _run(args: argparse.Namespace) -> None:
         providers.append(FakeProvider(fake_msgs, delay=0.3))
 
     if args.twitch:
-        import os
-
+        # lazy: pulls in the IRC/emote stack only when Twitch is requested
         from termchat.providers.twitch import TwitchProvider
 
         providers.append(TwitchProvider(args.twitch, os.environ.get("TWITCH_OAUTH", "")))
 
     if args.youtube:
+        # lazy: pulls in the httpx live-chat poller only when YouTube is requested
         from termchat.providers.youtube import YouTubeProvider
 
         providers.append(YouTubeProvider(args.youtube))
@@ -89,6 +86,7 @@ async def _run(args: argparse.Namespace) -> None:
         loop.add_signal_handler(sig, shutdown_event.set)
 
     if args.tui:
+        # lazy: avoid importing the heavy textual stack unless --tui is used
         from termchat.ui.tui import TermchatApp
 
         app = TermchatApp(bus, queue)
@@ -115,7 +113,7 @@ async def _run(args: argparse.Namespace) -> None:
         try:
             await task
         except (asyncio.CancelledError, Exception):
-            pass
+            pass  # swallow cancellation (and any late provider error) during shutdown drain
 
     # drain any messages still in the queue
     while not queue.empty():

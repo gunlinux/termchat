@@ -3,6 +3,7 @@ import concurrent.futures
 import json
 import os
 import re
+import sys
 import threading
 import time
 import urllib.request
@@ -453,8 +454,6 @@ class YouTubeProvider:
         return None
 
     def _open_chat(self, stop: threading.Event) -> Iterator[dict[str, Any]]:
-        import sys
-
         url = self._resolve_video_url()
         if url is None:
             print(

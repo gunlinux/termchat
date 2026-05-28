@@ -5,8 +5,6 @@ protocol or iTerm2 inline images) and renders `EmojiRun` either as a raw
 image escape sequence or as the `:shortcut:` fallback text.
 """
 
-from __future__ import annotations
-
 import asyncio
 import base64
 import hashlib

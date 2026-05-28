@@ -36,13 +36,11 @@ Leave `Literal`, `Any`, `Protocol` in `typing`.
 
 ## Medium value — consistency
 
-### TASK-3: Make `from __future__ import annotations` consistent
-Currently only `ui/emoji_render.py` and `providers/twitch_emotes.py` opt in.
-Decide one policy and apply everywhere:
-- **Option A (preferred):** add it to all 11 modules; then drop string-quoted
-  forward refs `-> "TwitchProvider"` (`twitch.py:148`) and `-> "YouTubeProvider"`
-  (`youtube.py:382`).
-- **Option B:** remove it from the two files that have it.
+### TASK-3: Make `from __future__ import annotations` consistent ✅ DONE (Option B)
+Chose **Option B** per user (project targets Python 3.12, no need for the
+future import): removed `from __future__ import annotations` from
+`ui/emoji_render.py` and `providers/twitch_emotes.py`. String-quoted forward
+refs (`twitch.py`, `youtube.py`) left intact since they still resolve fine.
 
 ### TASK-4: De-duplicate `_PLATFORM_ICONS`
 Identical dict defined in `ui/terminal.py:12` and `ui/tui.py:10`.
@@ -54,7 +52,7 @@ Identical dict defined in `ui/terminal.py:12` and `ui/tui.py:10`.
 - `termchat/domain/message.py:17`: change
   `MessageRun = TextRun | EmojiRun` → `type MessageRun = TextRun | EmojiRun`.
 
-### TASK-6: Hoist unnecessary lazy imports in `__main__.py`
+### TASK-6: Hoist unnecessary lazy imports in `__main__.py` ✅ DONE
 Move these stdlib imports to module top:
 - `from datetime import datetime, timezone` (currently inside `if args.demo:` at `:53`)
 - `import os` (inside `if args.twitch:` at `:65`)
@@ -64,7 +62,7 @@ Move these stdlib imports to module top:
 Keep the intentional lazy imports of heavy optional deps (`textual`, provider
 modules `tui`/`twitch`/`youtube`) but add a one-line comment explaining why.
 
-### TASK-7: Remove confusing `Message as Msg` alias
+### TASK-7: Remove confusing `Message as Msg` alias ✅ DONE
 - `termchat/__main__.py:54`: delete the `from termchat.domain.message import Message as Msg`
   import and use the `Message` already imported at `:7`. Update usages of `Msg`.
 
@@ -90,7 +88,7 @@ For best-effort network paths in `twitch_emotes.py` load methods,
 - Where broad catch is kept, add a trailing `# best-effort: …` comment
   (model: the disk-cache degradation comment at `emoji_render.py:82`).
 
-### TASK-11: Clarify `except (asyncio.CancelledError, Exception)` in `__main__.py:109`
+### TASK-11: Clarify `except (asyncio.CancelledError, Exception)` in `__main__.py:109` ✅ DONE
 - Add a comment `# swallow cancellation during shutdown drain`, or split into
   two `except` clauses. Behavior unchanged.
 

@@ -4,8 +4,6 @@ The registry does not handle Twitch's native emotes; those carry positional
 data in the IRC `emotes=` tag and are merged in by `twitch.py` separately.
 """
 
-from __future__ import annotations
-
 import asyncio
 import re
 from dataclasses import dataclass
