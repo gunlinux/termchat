@@ -5,6 +5,7 @@ data in the IRC `emotes=` tag and are merged in by `twitch.py` separately.
 """
 
 import asyncio
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -12,6 +13,8 @@ from typing import Any, Literal
 import httpx
 
 from termchat.domain.message import EmojiRun, MessageRun, TextRun
+
+logger = logging.getLogger(__name__)
 
 Source = Literal["bttv-global", "bttv-channel", "7tv-channel", "twitch-channel"]
 
@@ -92,8 +95,8 @@ class TwitchEmoteRegistry:
             resp.raise_for_status()
             for entry in resp.json() or []:
                 self._ingest_bttv(entry, source="bttv-global")
-        except Exception:
-            pass
+        except Exception as e:  # best-effort: missing emotes just fall back to text
+            logger.debug("BTTV global emote load failed: %s", e)
 
     async def load_channel(self, room_id: str) -> None:
         await asyncio.gather(
@@ -132,8 +135,8 @@ class TwitchEmoteRegistry:
                         source="twitch-channel",
                     )
                 )
-        except Exception:
-            pass
+        except Exception as e:  # best-effort: missing emotes just fall back to text
+            logger.debug("Twitch channel emote load failed for room %s: %s", room_id, e)
 
     async def _load_bttv_channel(self, room_id: str) -> None:
         client = await self._get_client()
@@ -144,8 +147,8 @@ class TwitchEmoteRegistry:
             data = resp.json() or {}
             for entry in (data.get("channelEmotes") or []) + (data.get("sharedEmotes") or []):
                 self._ingest_bttv(entry, source="bttv-channel")
-        except Exception:
-            pass
+        except Exception as e:  # best-effort: missing emotes just fall back to text
+            logger.debug("BTTV channel emote load failed for room %s: %s", room_id, e)
 
     async def _load_7tv_channel(self, room_id: str) -> None:
         client = await self._get_client()
@@ -169,8 +172,8 @@ class TwitchEmoteRegistry:
                         source="7tv-channel",
                     )
                 )
-        except Exception:
-            pass
+        except Exception as e:  # best-effort: missing emotes just fall back to text
+            logger.debug("7TV channel emote load failed for room %s: %s", room_id, e)
 
     def _ingest_bttv(self, entry: dict[str, Any], source: Source) -> None:
         code = entry.get("code")

@@ -1,9 +1,9 @@
 import asyncio
 import concurrent.futures
 import json
+import logging
 import os
 import re
-import sys
 import threading
 import time
 import urllib.request
@@ -15,6 +15,8 @@ from typing import Any, Protocol
 import httpx
 
 from termchat.domain.message import EmojiRun, Message, MessageRun, TextRun
+
+logger = logging.getLogger(__name__)
 
 
 class _HTTPClient(Protocol):
@@ -438,7 +440,8 @@ class YouTubeProvider:
                 if m:
                     return f"https://www.youtube.com/watch?v={m.group(1)}"
                 html = resp.read().decode("utf-8", errors="ignore")
-        except Exception:
+        except Exception as e:  # best-effort: caller falls back to the raw /live URL
+            logger.debug("video URL resolution failed for %s: %s", self.live_url, e)
             return None
 
         m = _YT_CANONICAL_RE.search(html)
@@ -462,9 +465,6 @@ class YouTubeProvider:
     def _open_chat(self, stop: threading.Event) -> Iterator[dict[str, Any]]:
         url = self._resolve_video_url()
         if url is None:
-            print(
-                f"[youtube] could not resolve live video URL, trying {self.live_url}",
-                file=sys.stderr,
-            )
+            logger.warning("could not resolve live video URL, trying %s", self.live_url)
             url = self.live_url
         return iter(_YouTubeLiveChatPoller(url, stop=stop))

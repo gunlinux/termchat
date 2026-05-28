@@ -352,7 +352,7 @@ def test_open_chat_falls_back_to_live_url_when_resolve_fails():
     assert captured["url"] == provider.live_url
 
 
-def test_open_chat_logs_to_stderr_when_resolve_fails(capsys):
+def test_open_chat_warns_when_resolve_fails(caplog):
     provider = YouTubeProvider("gunlinux")
 
     class _Poller:
@@ -362,13 +362,13 @@ def test_open_chat_logs_to_stderr_when_resolve_fails(capsys):
         def __iter__(self):
             return iter([])
 
-    with patch.object(provider, "_resolve_video_url", return_value=None):
-        with patch("termchat.providers.youtube._YouTubeLiveChatPoller", _Poller):
-            import threading
+    with caplog.at_level("WARNING", logger="termchat.providers.youtube"):
+        with patch.object(provider, "_resolve_video_url", return_value=None):
+            with patch("termchat.providers.youtube._YouTubeLiveChatPoller", _Poller):
+                import threading
 
-            list(provider._open_chat(threading.Event()))
-    err = capsys.readouterr().err
-    assert "gunlinux" in err
+                list(provider._open_chat(threading.Event()))
+    assert "gunlinux" in caplog.text
 
 
 async def test_youtube_messages_surfaces_bootstrap_error_as_system_msg():

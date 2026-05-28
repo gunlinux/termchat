@@ -8,6 +8,7 @@ image escape sequence or as the `:shortcut:` fallback text.
 import asyncio
 import base64
 import hashlib
+import logging
 import os
 import time
 from collections import OrderedDict
@@ -19,6 +20,8 @@ from typing import Literal
 import httpx
 
 from termchat.domain.message import EmojiRun, MessageRun, TextRun
+
+logger = logging.getLogger(__name__)
 
 Protocol = Literal["kitty", "iterm2", "none"]
 
@@ -115,8 +118,8 @@ class EmojiImageCache:
             self._store(url, data)
             if self._cache_dir is not None:
                 await asyncio.to_thread(self._write_disk, url, data)
-        except Exception:
-            pass
+        except Exception as e:  # best-effort: network/decode failure falls back to :shortcut:
+            logger.debug("emote fetch failed for %s: %s", url, e)
         finally:
             self._in_flight.pop(url, None)
 
@@ -222,7 +225,8 @@ def _to_png_first_frame(data: bytes) -> bytes:
         buf = BytesIO()
         img.convert("RGBA").save(buf, format="PNG")
         return buf.getvalue()
-    except Exception:
+    except Exception as e:  # best-effort: hand back raw bytes if Pillow can't decode
+        logger.debug("PNG normalization failed: %s", e)
         return data
 
 

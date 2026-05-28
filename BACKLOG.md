@@ -81,7 +81,7 @@ modules `tui`/`twitch`/`youtube`) but add a one-line comment explaining why.
 
 ## Low value — polish
 
-### TASK-10: Narrow/document broad `except Exception` blocks
+### TASK-10: Narrow/document broad `except Exception` blocks ✅ DONE
 For best-effort network paths in `twitch_emotes.py` load methods,
 `emoji_render.py` (`_fetch`, `_to_png_first_frame`), `youtube.py:_resolve_video_url`:
 - Narrow to expected families where practical (`httpx.HTTPError`, `OSError`, `ValueError`).
@@ -92,7 +92,7 @@ For best-effort network paths in `twitch_emotes.py` load methods,
 - Add a comment `# swallow cancellation during shutdown drain`, or split into
   two `except` clauses. Behavior unchanged.
 
-### TASK-12: Introduce `logging`
+### TASK-12: Introduce `logging` ✅ DONE
 - Add `logger = logging.getLogger(__name__)` to modules that emit diagnostics.
 - Replace `print(..., file=sys.stderr)` in `youtube.py:452` with `logger.warning(...)`.
 - Gives the silent `except` blocks (TASK-10) a `logger.debug(...)` outlet.
