@@ -278,7 +278,7 @@ def test_open_chat_uses_resolved_url():
     captured: dict = {}
 
     class _Poller:
-        def __init__(self, url):
+        def __init__(self, url, **kwargs):
             captured["url"] = url
 
         def __iter__(self):
@@ -286,7 +286,8 @@ def test_open_chat_uses_resolved_url():
 
     with patch.object(provider, "_resolve_video_url", return_value=resolved):
         with patch("termchat.providers.youtube._YouTubeLiveChatPoller", _Poller):
-            list(provider._open_chat())
+            import threading
+            list(provider._open_chat(threading.Event()))
     assert captured["url"] == resolved
 
 
@@ -295,7 +296,7 @@ def test_open_chat_falls_back_to_live_url_when_resolve_fails():
     captured: dict = {}
 
     class _Poller:
-        def __init__(self, url):
+        def __init__(self, url, **kwargs):
             captured["url"] = url
 
         def __iter__(self):
@@ -303,7 +304,8 @@ def test_open_chat_falls_back_to_live_url_when_resolve_fails():
 
     with patch.object(provider, "_resolve_video_url", return_value=None):
         with patch("termchat.providers.youtube._YouTubeLiveChatPoller", _Poller):
-            list(provider._open_chat())
+            import threading
+            list(provider._open_chat(threading.Event()))
     assert captured["url"] == provider.live_url
 
 
@@ -311,12 +313,13 @@ def test_open_chat_logs_to_stderr_when_resolve_fails(capsys):
     provider = YouTubeProvider("gunlinux")
 
     class _Poller:
-        def __init__(self, url): pass
+        def __init__(self, url, **kwargs): pass
         def __iter__(self): return iter([])
 
     with patch.object(provider, "_resolve_video_url", return_value=None):
         with patch("termchat.providers.youtube._YouTubeLiveChatPoller", _Poller):
-            list(provider._open_chat())
+            import threading
+            list(provider._open_chat(threading.Event()))
     err = capsys.readouterr().err
     assert "gunlinux" in err
 
@@ -325,7 +328,7 @@ async def test_youtube_messages_surfaces_bootstrap_error_as_system_msg():
     provider = YouTubeProvider("gunlinux")
 
     class _Poller:
-        def __init__(self, url): pass
+        def __init__(self, url, **kwargs): pass
         def __iter__(self):
             raise _YouTubeBootstrapError("Unable to parse initial video data")
 

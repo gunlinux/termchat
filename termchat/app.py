@@ -22,8 +22,9 @@ class MessageBus:
                 tg.create_task(self._drain(provider))
 
     async def _drain(self, provider: Provider) -> None:
+        gen = provider.messages()
         try:
-            async for msg in provider.messages():
+            async for msg in gen:
                 self._counts[msg.platform] = self._counts.get(msg.platform, 0) + 1
                 await self._queue.put(msg)
         except Exception as e:
@@ -34,3 +35,5 @@ class MessageBus:
                 timestamp=datetime.now(timezone.utc),
                 platform="system",
             ))
+        finally:
+            await gen.aclose()

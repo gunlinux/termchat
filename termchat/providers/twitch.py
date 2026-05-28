@@ -4,7 +4,7 @@ import random
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import AsyncIterator
+from typing import AsyncGenerator
 
 from termchat.domain.message import EmojiRun, Message, MessageRun, TextRun
 from termchat.providers.twitch_emotes import TwitchEmoteRegistry
@@ -150,7 +150,7 @@ class TwitchProvider:
         oauth = os.environ.get("TWITCH_OAUTH", "")
         return cls(channel, oauth)
 
-    async def messages(self) -> AsyncIterator[Message]:
+    async def messages(self) -> AsyncGenerator[Message, None]:
         """Yield messages forever, reconnecting on disconnect or stale link.
 
         Each call to `_read_session()` is one TCP connection's lifetime — it
@@ -164,8 +164,9 @@ class TwitchProvider:
         """
         backoff = _RECONNECT_BACKOFF_INITIAL
         while True:
+            session = self._read_session()
             try:
-                async for msg in self._read_session():
+                async for msg in session:
                     backoff = _RECONNECT_BACKOFF_INITIAL
                     yield msg
                 # Generator returned cleanly → server closed; reconnect.
@@ -175,10 +176,12 @@ class TwitchProvider:
                 # Network failure, TimeoutError, ConnectionResetError,
                 # OSError from open_connection — all retryable.
                 pass
+            finally:
+                await session.aclose()
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, _RECONNECT_BACKOFF_MAX)
 
-    async def _read_session(self) -> AsyncIterator[Message]:
+    async def _read_session(self) -> AsyncGenerator[Message, None]:
         """One IRC connection's lifetime. Returns when the connection drops."""
         reader, writer = await asyncio.open_connection(_HOST, _PORT)
         registry = TwitchEmoteRegistry()
@@ -225,11 +228,14 @@ class TwitchProvider:
             global_task.cancel()
             if channel_task is not None:
                 channel_task.cancel()
+            tasks: list[asyncio.Task[None]] = [global_task]
+            if channel_task is not None:
+                tasks.append(channel_task)
+            await asyncio.gather(*tasks, return_exceptions=True)
             await registry.aclose()
             writer.close()
             try:
-                await writer.wait_closed()
+                async with asyncio.timeout(2.0):
+                    await writer.wait_closed()
             except Exception:
-                # Already-broken socket may raise on close; we're tearing
-                # down anyway, the reconnect loop will open a fresh one.
                 pass

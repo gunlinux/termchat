@@ -95,16 +95,15 @@ async def _run(args: argparse.Namespace) -> None:
     ui = TerminalUI(queue)
     bus_task = asyncio.create_task(bus.run())
     ui_task = asyncio.create_task(ui.run())
+    shutdown_task = asyncio.create_task(shutdown_event.wait())
 
-    done, _ = await asyncio.wait(
-        [bus_task, asyncio.create_task(shutdown_event.wait())],
+    await asyncio.wait(
+        [bus_task, shutdown_task],
         return_when=asyncio.FIRST_COMPLETED,
     )
 
-    bus_task.cancel()
-    ui_task.cancel()
-
-    for task in (bus_task, ui_task):
+    for task in (bus_task, ui_task, shutdown_task):
+        task.cancel()
         try:
             await task
         except (asyncio.CancelledError, Exception):

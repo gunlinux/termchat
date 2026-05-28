@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncIterator
+from typing import AsyncGenerator
 
 from termchat.domain.message import Message
 
@@ -9,7 +9,7 @@ class FakeProvider:
         self._messages = messages_to_yield
         self._delay = delay
 
-    async def messages(self) -> AsyncIterator[Message]:
+    async def messages(self) -> AsyncGenerator[Message, None]:
         for msg in self._messages:
             if self._delay > 0:
                 await asyncio.sleep(self._delay)

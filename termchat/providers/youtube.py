@@ -1,12 +1,14 @@
 import asyncio
+import concurrent.futures
 import json
 import os
 import re
+import threading
 import time
 import urllib.request
 import uuid
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Iterator
+from typing import Any, AsyncGenerator, Iterator
 
 import httpx
 
@@ -284,18 +286,18 @@ class _YouTubeLiveChatPoller:
         *,
         client: httpx.Client | None = None,
         sleep: Any = None,
+        stop: threading.Event | None = None,
     ) -> None:
         self._watch_url = watch_url
         self._client = client
-        self._sleep = sleep if sleep is not None else self._chunked_sleep
+        self._stop = stop if stop is not None else threading.Event()
+        self._sleep = sleep if sleep is not None else self._default_sleep
 
-    @staticmethod
-    def _chunked_sleep(seconds: float) -> None:
+    def _default_sleep(self, seconds: float) -> None:
         remaining = float(seconds)
-        while remaining > 0:
-            chunk = min(0.5, remaining)
-            time.sleep(chunk)
-            remaining -= chunk
+        while remaining > 0 and not self._stop.is_set():
+            time.sleep(min(0.1, remaining))
+            remaining -= 0.1
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
         client = self._client
@@ -307,10 +309,12 @@ class _YouTubeLiveChatPoller:
                 follow_redirects=True,
             )
         try:
+            if self._stop.is_set():
+                return
             html = self._fetch_watch(client)
             api_key, ctx, continuation = _extract_bootstrap(html)
             api_url = f"{_LIVE_CHAT_API}?key={api_key}&prettyPrint=false"
-            while continuation:
+            while continuation and not self._stop.is_set():
                 payload = self._post_chat(client, api_url, ctx, continuation)
                 lcc = (payload.get("continuationContents") or {}).get(
                     "liveChatContinuation"
@@ -319,11 +323,13 @@ class _YouTubeLiveChatPoller:
                     return
                 for action in lcc.get("actions") or []:
                     if isinstance(action, dict):
+                        if self._stop.is_set():
+                            return
                         yield from _iter_action_entries(action)
                 continuation, sleep_s = _extract_continuation(
                     lcc.get("continuations") or []
                 )
-                if not continuation:
+                if not continuation or self._stop.is_set():
                     return
                 if sleep_s > 0:
                     self._sleep(sleep_s)
@@ -380,24 +386,30 @@ class YouTubeProvider:
     def live_url(self) -> str:
         return f"https://www.youtube.com/@{self._channel}/live"
 
-    async def messages(self) -> AsyncIterator[Message]:
+    async def messages(self) -> AsyncGenerator[Message, None]:
         loop = asyncio.get_running_loop()
+        stop = threading.Event()
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         try:
-            chat = await loop.run_in_executor(None, self._open_chat)
-        except Exception as e:
-            yield _system_msg(f"[youtube] failed to open chat: {e}")
-            return
-        while True:
             try:
-                entry = await loop.run_in_executor(None, _next_or_none, chat)
+                chat = await loop.run_in_executor(executor, lambda: self._open_chat(stop))
             except Exception as e:
-                yield _system_msg(f"[youtube] {e}")
+                yield _system_msg(f"[youtube] failed to open chat: {e}")
                 return
-            if entry is None:
-                return
-            msg = _map_entry(entry)
-            if msg:
-                yield msg
+            while True:
+                try:
+                    entry = await loop.run_in_executor(executor, _next_or_none, chat)
+                except Exception as e:
+                    yield _system_msg(f"[youtube] {e}")
+                    return
+                if entry is None:
+                    return
+                msg = _map_entry(entry)
+                if msg:
+                    yield msg
+        finally:
+            stop.set()
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def _resolve_video_url(self) -> str | None:
         req = urllib.request.Request(
@@ -431,7 +443,7 @@ class YouTubeProvider:
 
         return None
 
-    def _open_chat(self) -> Iterator[dict[str, Any]]:
+    def _open_chat(self, stop: threading.Event) -> Iterator[dict[str, Any]]:
         import sys
 
         url = self._resolve_video_url()
@@ -441,4 +453,4 @@ class YouTubeProvider:
                 file=sys.stderr,
             )
             url = self.live_url
-        return iter(_YouTubeLiveChatPoller(url))
+        return iter(_YouTubeLiveChatPoller(url, stop=stop))
