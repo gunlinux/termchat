@@ -2,6 +2,8 @@
 
 An async, read-only terminal multi-chat aggregator. termchat reads live chat from multiple streaming platforms at once and displays them together in your terminal.
 
+![termchat screenshot](docs/screen.png)
+
 ## Features
 
 - **Multi-platform** — read Twitch and YouTube live chat simultaneously, with an architecture built for adding more providers.
