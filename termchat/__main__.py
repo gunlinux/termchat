@@ -98,7 +98,12 @@ async def _run(args: argparse.Namespace) -> None:
 
     from termchat.ui.terminal import TerminalUI
 
-    ui = TerminalUI(queue)
+    channel_names: set[str] = set()
+    if args.twitch:
+        channel_names.add(args.twitch)
+    if args.youtube:
+        channel_names.add(args.youtube)
+    ui = TerminalUI(queue, channel_names=channel_names)
     bus_task = asyncio.create_task(bus.run())
     ui_task = asyncio.create_task(ui.run())
     shutdown_task = asyncio.create_task(shutdown_event.wait())

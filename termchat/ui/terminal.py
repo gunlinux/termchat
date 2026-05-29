@@ -48,6 +48,11 @@ _MENTION_ANSI = "\x1b[38;2;88;166;255m"
 # embedded forms like emails (a@b) are left alone.
 _MENTION_RE = re.compile(r"(?:^|(?<=\s))(@\w+)")
 
+# Same blue applied to the *entire* body when the message is directed at the
+# channel owner (i.e. the first @handle matches a watched channel name).
+_CHANNEL_REPLY_ANSI = _MENTION_ANSI
+_CHANNEL_REPLY_START_RE = re.compile(r"^@(\w+)")
+
 # Tokenises a rendered body string into display-width segments.
 # img: Kitty transmit (a=T in header) or iTerm2 → 2 display cells.
 # img_cont: Kitty continuation chunk (m=0/m=1, no a=T) → 0 cells, output immediately.
@@ -68,9 +73,19 @@ def _highlight_mentions(text: str) -> str:
     return _MENTION_RE.sub(lambda m: f"{_MENTION_ANSI}{m.group(1)}{_RESET}", text)
 
 
+def _is_channel_reply(text: str, channel_names: set[str]) -> bool:
+    """Return True if text starts with @<watched-channel-name>."""
+    m = _CHANNEL_REPLY_START_RE.match(text)
+    return m is not None and m.group(1).lower() in channel_names
+
+
 class TerminalUI:
-    def __init__(self, queue: asyncio.Queue[Message]) -> None:
+    def __init__(
+        self, queue: asyncio.Queue[Message], channel_names: set[str] | None = None
+    ) -> None:
         self._queue = queue
+        # Lowercase, @-stripped names of watched channels; used to detect replies to the streamer.
+        self._channel_names: set[str] = {n.lower().lstrip("@") for n in (channel_names or set())}
         # detect_image_protocol checks env vars for Kitty / iTerm2 / WezTerm.
         # In an unsupported terminal `_protocol == "none"` and runs collapse
         # back to their `:shortcut:` text — same output as before.
@@ -115,6 +130,14 @@ class TerminalUI:
                 # cached — avoids the "first occurrence is :shortcode:" flash.
                 await self._prefetch_emote_images(msg)
                 body = self._render_body(msg)
+                if self._channel_names and _is_channel_reply(msg.text, self._channel_names):
+                    # Whole body blue; re-apply after any embedded RESET so inner
+                    # mention highlights don't terminate the channel-reply color.
+                    body = (
+                        _CHANNEL_REPLY_ANSI
+                        + body.replace(_RESET, _RESET + _CHANNEL_REPLY_ANSI)
+                        + _RESET
+                    )
                 a_ansi = _AUTHOR_ANSI.get(msg.platform, "")
                 if msg.platform == "youtube" and self._youtube_icon is not None:
                     # Full-color PNG; no ANSI color wrapper needed.
