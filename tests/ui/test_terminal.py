@@ -52,6 +52,59 @@ async def test_terminal_ui_multiple_messages():
     assert "streamer\x1b[0m: hello 2" in lines[2]
 
 
+async def test_terminal_ui_highlights_mention_in_blue():
+    """A reply starting with @handle gets the blue mention ANSI color."""
+    from termchat.ui.terminal import _MENTION_ANSI
+
+    msg = Message(
+        id="1",
+        author="bob",
+        text="@alice nice play",
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+        platform="twitch",
+    )
+    queue: asyncio.Queue[Message] = asyncio.Queue()
+    await queue.put(msg)
+
+    output = StringIO()
+    with (
+        patch.dict("os.environ", {"TERM": "xterm-256color"}, clear=True),
+        patch("sys.stdout", output),
+    ):
+        ui = TerminalUI(queue)
+        await _drain(ui, queue)
+
+    out = output.getvalue()
+    assert f"{_MENTION_ANSI}@alice\x1b[0m nice play" in out
+
+
+async def test_terminal_ui_does_not_highlight_non_mention_at():
+    """An @ embedded mid-word (e.g. an email) is left untouched."""
+    from termchat.ui.terminal import _MENTION_ANSI
+
+    msg = Message(
+        id="1",
+        author="bob",
+        text="mail me at a@b.com",
+        timestamp=datetime(2024, 1, 1, tzinfo=UTC),
+        platform="twitch",
+    )
+    queue: asyncio.Queue[Message] = asyncio.Queue()
+    await queue.put(msg)
+
+    output = StringIO()
+    with (
+        patch.dict("os.environ", {"TERM": "xterm-256color"}, clear=True),
+        patch("sys.stdout", output),
+    ):
+        ui = TerminalUI(queue)
+        await _drain(ui, queue)
+
+    out = output.getvalue()
+    assert _MENTION_ANSI not in out
+    assert "a@b.com" in out
+
+
 async def test_terminal_ui_falls_back_to_shortcuts_when_no_image_protocol():
     """Unsupported terminal (no Kitty/iTerm2/WezTerm env) → :shortcut: text."""
     msg = Message(
