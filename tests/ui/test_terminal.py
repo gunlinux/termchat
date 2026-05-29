@@ -4,7 +4,7 @@ from io import StringIO
 from unittest.mock import patch
 
 from termchat.domain.message import EmojiRun, Message, TextRun
-from termchat.ui.terminal import TerminalUI
+from termchat.ui.terminal import _HIDE_CURSOR, TerminalUI
 
 
 def _msg(i: int, platform: str = "twitch") -> Message:
@@ -46,7 +46,9 @@ async def test_terminal_ui_multiple_messages():
         ui = TerminalUI(queue)
         await _drain(ui, queue)
 
-    lines = output.getvalue().strip().splitlines()
+    # The leading hide-cursor escape is written once before any message; the
+    # three messages each occupy their own line.
+    lines = [line for line in output.getvalue().splitlines() if "streamer" in line]
     assert len(lines) == 3
     assert "streamer\x1b[0m: hello 0" in lines[0]
     assert "streamer\x1b[0m: hello 2" in lines[2]
@@ -276,9 +278,9 @@ async def test_terminal_ui_waits_for_emote_fetch_before_printing():
         # Give the loop a few ticks to dequeue + kick off the fetch
         for _ in range(5):
             await asyncio.sleep(0)
-        # Fetch is blocked → nothing printed yet
+        # Fetch is blocked → no message printed yet (only the hide-cursor escape)
         assert transport.calls == 1
-        assert output.getvalue() == ""
+        assert output.getvalue() == _HIDE_CURSOR
 
         # Release the gate; UI should now finish rendering
         transport.gate.set()

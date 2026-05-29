@@ -34,6 +34,11 @@ _AUTHOR_ANSI: dict[str, str] = {
 
 _RESET = "\x1b[0m"
 
+# DECTCEM hide/show cursor — the blinking cursor parked after the last message
+# is distracting, so hide it while running and restore it on exit.
+_HIDE_CURSOR = "\x1b[?25l"
+_SHOW_CURSOR = "\x1b[?25h"
+
 # Blue applied to @mentions (replies/pings) anywhere in the message body.
 _MENTION_ANSI = "\x1b[38;2;88;166;255m"
 # Match an @handle at the start of the body or after whitespace, so a reply
@@ -76,6 +81,8 @@ class TerminalUI:
         return render_image(data, self._protocol)
 
     async def run(self) -> None:
+        sys.stdout.write(_HIDE_CURSOR)
+        sys.stdout.flush()
         try:
             while True:
                 msg = await self._queue.get()
@@ -95,6 +102,8 @@ class TerminalUI:
                 sys.stdout.flush()
                 self._queue.task_done()
         finally:
+            sys.stdout.write(_SHOW_CURSOR)
+            sys.stdout.flush()
             if self._cache is not None:
                 await self._cache.aclose()
 
