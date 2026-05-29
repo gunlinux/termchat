@@ -1,6 +1,7 @@
 import asyncio
 import importlib.resources
 import logging
+import re
 import sys
 
 from termchat.domain.message import EmojiRun, Message
@@ -32,6 +33,17 @@ _AUTHOR_ANSI: dict[str, str] = {
 }
 
 _RESET = "\x1b[0m"
+
+# Blue applied to @mentions (replies/pings) anywhere in the message body.
+_MENTION_ANSI = "\x1b[38;2;88;166;255m"
+# Match an @handle at the start of the body or after whitespace, so a reply
+# that "starts with @" — and any mid-message ping — is highlighted, while
+# embedded forms like emails (a@b) are left alone.
+_MENTION_RE = re.compile(r"(?:^|(?<=\s))(@\w+)")
+
+
+def _highlight_mentions(text: str) -> str:
+    return _MENTION_RE.sub(lambda m: f"{_MENTION_ANSI}{m.group(1)}{_RESET}", text)
 
 
 class TerminalUI:
@@ -94,6 +106,9 @@ class TerminalUI:
             await self._cache.prefetch(urls)
 
     def _render_body(self, msg: Message) -> str:
+        # @mentions never collide with the base64 image escapes (their alphabet
+        # and headers contain no '@'), so highlighting the whole body is safe.
         if not msg.runs or self._cache is None:
-            return msg.text
-        return "".join(render_run(r, self._protocol, self._cache) for r in msg.runs)
+            return _highlight_mentions(msg.text)
+        body = "".join(render_run(r, self._protocol, self._cache) for r in msg.runs)
+        return _highlight_mentions(body)

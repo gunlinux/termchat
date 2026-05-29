@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 from rich.markup import escape as markup_escape
 from textual.app import App, ComposeResult
@@ -29,6 +30,15 @@ _AUTHOR_COLORS: dict[str, str] = {
 }
 
 _AUTHOR_WIDTH = 20
+
+# Match an @handle at the start of the body or after whitespace so a reply that
+# "starts with @" — and any mid-message ping — is highlighted in blue. Applied
+# after markup_escape, so the inserted [blue] tags are the only live markup.
+_MENTION_RE = re.compile(r"(?:^|(?<=\s))(@\w+)")
+
+
+def _highlight_mentions(escaped: str) -> str:
+    return _MENTION_RE.sub(lambda m: f"[blue]{m.group(1)}[/blue]", escaped)
 
 
 class TermchatApp(App[None]):
@@ -64,7 +74,7 @@ class TermchatApp(App[None]):
             icon = PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
             platform_tag = f"[bold {color}]{icon}[/bold {color}]"
             author = markup_escape(msg.author.ljust(_AUTHOR_WIDTH)[:_AUTHOR_WIDTH])
-            body = markup_escape(self._render_body(msg))
+            body = _highlight_mentions(markup_escape(self._render_body(msg)))
             log.write(f"{platform_tag} [bold {author_color}]{author}[/bold {author_color}] {body}")
 
     def _render_body(self, msg: Message) -> str:
