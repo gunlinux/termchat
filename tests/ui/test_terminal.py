@@ -7,6 +7,10 @@ from termchat.domain.message import EmojiRun, Message, TextRun
 from termchat.ui.terminal import _HIDE_CURSOR, TerminalUI
 
 
+def _make_ui() -> TerminalUI:
+    return TerminalUI(asyncio.Queue())
+
+
 def _msg(i: int, platform: str = "twitch") -> Message:
     return Message(
         id=str(i),
@@ -291,3 +295,50 @@ async def test_terminal_ui_waits_for_emote_fetch_before_printing():
     rendered = output.getvalue()
     assert "alice\x1b[0m: hi " in rendered
     assert "\x1b_G" in rendered  # image escape, not shortcode
+
+
+# ── _wrap_body unit tests ──────────────────────────────────────────────────────
+
+
+def test_wrap_body_plain_text():
+    ui = _make_ui()
+    body = "word1 word2 word3 word4 word5"
+    wrapped = ui._wrap_body(body, indent_width=0, available_width=14)
+    lines = wrapped.split("\n")
+    # "word1 word2" fits (11 ≤ 14), "word3" triggers wrap with no indent
+    assert lines[0] == "word1 word2"
+    assert lines[1] == "word3 word4"
+
+
+def test_wrap_body_continuation_uses_full_available_width():
+    """After wrapping, the continuation line body uses the full available_width."""
+    ui = _make_ui()
+    # available_width=10, indent_width=0 (no gap on left)
+    # "longword"=8 fits; space+"aaa"=12>10 → wrap; on continuation "aaa bbb"=7 ≤ 10 fits
+    body = "longword aaa bbb"
+    wrapped = ui._wrap_body(body, indent_width=0, available_width=10)
+    lines = wrapped.split("\n")
+    assert lines[0] == "longword"
+    assert lines[1] == "aaa bbb"
+
+
+def test_wrap_body_single_chunk_kitty_counted_as_2_cells():
+    """A single-chunk Kitty escape counts as exactly 2 display cells."""
+    ui = _make_ui()
+    img = "\x1b_Gf=100,a=T,t=d,c=2,r=1,q=2;AAAA\x1b\\"
+    # 5 emojis + 4 spaces = 14 cells; with available_width=20 they all fit
+    body = " ".join([img] * 5)
+    wrapped = ui._wrap_body(body, indent_width=5, available_width=20)
+    assert "\n" not in wrapped
+
+
+def test_wrap_body_multi_chunk_kitty_counted_as_2_cells():
+    """Kitty continuation chunks (m=1/m=0) count as 0 cells — only the transmit chunk is 2."""
+    ui = _make_ui()
+    multi = "\x1b_Gf=100,a=T,t=d,c=2,r=1,q=2,m=1;AAAA\x1b\\\x1b_Gm=1;BBBB\x1b\\\x1b_Gm=0;CCCC\x1b\\"
+    # 5 multi-chunk emojis + 4 spaces = 14 cells; should all fit in available_width=20
+    body = " ".join([multi] * 5)
+    wrapped = ui._wrap_body(body, indent_width=5, available_width=20)
+    assert "\n" not in wrapped
+    # Continuation chunks must stay glued to their transmit chunk (no newline between them)
+    assert "\x1b_Gm=1;BBBB\x1b\\\n" not in wrapped
