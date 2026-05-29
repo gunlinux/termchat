@@ -11,6 +11,7 @@ from termchat.providers.youtube import (
     YouTubeProvider,
     _extract_bootstrap,
     _extract_continuation,
+    _fmt_error,
     _iter_action_entries,
     _map_entry,
     _renderer_to_entry,
@@ -225,6 +226,48 @@ async def test_youtube_messages_yields_system_on_iteration_error():
     assert len(msgs) == 1
     assert msgs[0].platform == "system"
     assert "chat gone" in msgs[0].text
+
+
+def test_fmt_error_400_returns_human_message():
+    err = httpx.HTTPStatusError(
+        "Client error '400 Bad Request' for url 'https://example.com/long/path'\n"
+        "For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
+        request=MagicMock(),
+        response=MagicMock(status_code=400),
+    )
+    assert _fmt_error(err) == "no active stream (channel may be offline)"
+
+
+def test_fmt_error_other_http_status_shows_code():
+    err = httpx.HTTPStatusError(
+        "Server error '503'",
+        request=MagicMock(),
+        response=MagicMock(status_code=503),
+    )
+    assert _fmt_error(err) == "HTTP 503"
+
+
+def test_fmt_error_passes_through_other_exceptions():
+    assert _fmt_error(RuntimeError("something broke")) == "something broke"
+
+
+async def test_youtube_messages_short_system_msg_on_http_400():
+    def _bad_iter():
+        raise httpx.HTTPStatusError(
+            "Client error '400 Bad Request' for url 'https://yt/live_chat?key=X'",
+            request=MagicMock(),
+            response=MagicMock(status_code=400),
+        )
+        yield  # make it a generator
+
+    provider = YouTubeProvider("somechannel")
+    with patch.object(provider, "_open_chat", return_value=_bad_iter()):
+        msgs = [m async for m in provider.messages()]
+    assert len(msgs) == 1
+    assert msgs[0].platform == "system"
+    assert "no active stream" in msgs[0].text
+    assert "prettyPrint" not in msgs[0].text
+    assert "developer.mozilla.org" not in msgs[0].text
 
 
 def test_youtube_live_url_builds_from_channel():

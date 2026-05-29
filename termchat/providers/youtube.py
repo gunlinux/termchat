@@ -109,6 +109,15 @@ def _next_or_none(it: Iterator[dict[str, Any]]) -> dict[str, Any] | None:
         return None
 
 
+def _fmt_error(e: Exception) -> str:
+    if isinstance(e, httpx.HTTPStatusError):
+        status = e.response.status_code  # type: ignore[union-attr]
+        if status == 400:
+            return "no active stream (channel may be offline)"
+        return f"HTTP {status}"
+    return str(e)
+
+
 # --- Native YouTube live chat poller (replaces unmaintained chat_downloader 0.2.8) ---
 
 _YT_INITIAL_DATA_RE = re.compile(
@@ -402,13 +411,13 @@ class YouTubeProvider:
             try:
                 chat = await loop.run_in_executor(executor, lambda: self._open_chat(stop))
             except Exception as e:
-                yield Message.system(f"[youtube] failed to open chat: {e}")
+                yield Message.system(f"[youtube] failed to open chat: {_fmt_error(e)}")
                 return
             while True:
                 try:
                     entry = await loop.run_in_executor(executor, _next_or_none, chat)
                 except Exception as e:
-                    yield Message.system(f"[youtube] {e}")
+                    yield Message.system(f"[youtube] {_fmt_error(e)}")
                     return
                 if entry is None:
                     return
