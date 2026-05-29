@@ -109,6 +109,22 @@ def _next_or_none(it: Iterator[dict[str, Any]]) -> dict[str, Any] | None:
         return None
 
 
+def _fmt_error(e: Exception) -> str:
+    if isinstance(e, httpx.HTTPStatusError):
+        status = e.response.status_code  # type: ignore[union-attr]
+        if status == 400:
+            return "no active stream (channel may be offline)"
+        return f"HTTP {status}"
+    return str(e)
+
+
+def _is_offline_error(e: Exception) -> bool:
+    return isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 400  # type: ignore[union-attr]
+
+
+_RECONNECT_SLEEP_S = 30.0
+
+
 # --- Native YouTube live chat poller (replaces unmaintained chat_downloader 0.2.8) ---
 
 _YT_INITIAL_DATA_RE = re.compile(
@@ -399,22 +415,41 @@ class YouTubeProvider:
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         startup_time = datetime.now(UTC)
         try:
-            try:
-                chat = await loop.run_in_executor(executor, lambda: self._open_chat(stop))
-            except Exception as e:
-                yield Message.system(f"[youtube] failed to open chat: {e}")
-                return
             while True:
                 try:
-                    entry = await loop.run_in_executor(executor, _next_or_none, chat)
+                    chat = await loop.run_in_executor(executor, lambda: self._open_chat(stop))
                 except Exception as e:
-                    yield Message.system(f"[youtube] {e}")
+                    if _is_offline_error(e):
+                        yield Message.system(
+                            f"[youtube] {_fmt_error(e)}, retrying in {_RECONNECT_SLEEP_S:.0f}s"
+                        )
+                        await asyncio.sleep(_RECONNECT_SLEEP_S)
+                        continue
+                    yield Message.system(f"[youtube] failed to open chat: {_fmt_error(e)}")
                     return
-                if entry is None:
+
+                reconnect = False
+                while True:
+                    try:
+                        entry = await loop.run_in_executor(executor, _next_or_none, chat)
+                    except Exception as e:
+                        if _is_offline_error(e):
+                            yield Message.system(
+                                f"[youtube] {_fmt_error(e)}, retrying in {_RECONNECT_SLEEP_S:.0f}s"
+                            )
+                            await asyncio.sleep(_RECONNECT_SLEEP_S)
+                            reconnect = True
+                        else:
+                            yield Message.system(f"[youtube] {_fmt_error(e)}")
+                        break
+                    if entry is None:
+                        break
+                    msg = _map_entry(entry)
+                    if msg and msg.timestamp >= startup_time:
+                        yield msg
+
+                if not reconnect:
                     return
-                msg = _map_entry(entry)
-                if msg and msg.timestamp >= startup_time:
-                    yield msg
         finally:
             stop.set()
             executor.shutdown(wait=False, cancel_futures=True)

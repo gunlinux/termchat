@@ -1,7 +1,7 @@
 import json
 import urllib.error
 from datetime import UTC
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -11,6 +11,7 @@ from termchat.providers.youtube import (
     YouTubeProvider,
     _extract_bootstrap,
     _extract_continuation,
+    _fmt_error,
     _iter_action_entries,
     _map_entry,
     _renderer_to_entry,
@@ -225,6 +226,50 @@ async def test_youtube_messages_yields_system_on_iteration_error():
     assert len(msgs) == 1
     assert msgs[0].platform == "system"
     assert "chat gone" in msgs[0].text
+
+
+def test_fmt_error_400_returns_human_message():
+    err = httpx.HTTPStatusError(
+        "Client error '400 Bad Request' for url 'https://example.com/long/path'\n"
+        "For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
+        request=MagicMock(),
+        response=MagicMock(status_code=400),
+    )
+    assert _fmt_error(err) == "no active stream (channel may be offline)"
+
+
+def test_fmt_error_other_http_status_shows_code():
+    err = httpx.HTTPStatusError(
+        "Server error '503'",
+        request=MagicMock(),
+        response=MagicMock(status_code=503),
+    )
+    assert _fmt_error(err) == "HTTP 503"
+
+
+def test_fmt_error_passes_through_other_exceptions():
+    assert _fmt_error(RuntimeError("something broke")) == "something broke"
+
+
+async def test_youtube_messages_short_system_msg_on_http_400():
+    def _bad_iter():
+        raise httpx.HTTPStatusError(
+            "Client error '400 Bad Request' for url 'https://yt/live_chat?key=X'",
+            request=MagicMock(),
+            response=MagicMock(status_code=400),
+        )
+        yield  # make it a generator
+
+    provider = YouTubeProvider("somechannel")
+    # return_value reuses the same (already-exhausted-after-error) generator on reconnect,
+    # so the second open_chat call returns None immediately and the loop exits.
+    with patch.object(provider, "_open_chat", return_value=_bad_iter()):
+        with patch("asyncio.sleep", AsyncMock()):
+            msgs = [m async for m in provider.messages()]
+    assert msgs[0].platform == "system"
+    assert "no active stream" in msgs[0].text
+    assert "prettyPrint" not in msgs[0].text
+    assert "developer.mozilla.org" not in msgs[0].text
 
 
 def test_youtube_live_url_builds_from_channel():
@@ -888,6 +933,86 @@ def test_poller_handles_missing_liveChatContinuation():
     )
     entries = list(_YouTubeLiveChatPoller("u", client=client, sleep=lambda _: None))
     assert entries == []
+
+
+# --- reconnect on 400 ---
+
+
+async def test_youtube_messages_reconnects_on_400_at_open():
+    call_count = 0
+    success_entry = {"message_id": "1", "author": {"name": "alice"}, "message": "Hi", "timestamp": None}
+
+    def open_side_effect(stop):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise httpx.HTTPStatusError(
+                "400", request=MagicMock(), response=MagicMock(status_code=400)
+            )
+        return iter([success_entry])
+
+    provider = YouTubeProvider("somechannel")
+    with patch.object(provider, "_open_chat", side_effect=open_side_effect):
+        with patch("asyncio.sleep", AsyncMock()) as mock_sleep:
+            msgs = [m async for m in provider.messages()]
+
+    assert call_count == 2
+    assert mock_sleep.call_count == 1
+    assert mock_sleep.call_args[0][0] == 30.0
+    system_msgs = [m for m in msgs if m.platform == "system"]
+    assert len(system_msgs) == 1
+    assert "no active stream" in system_msgs[0].text
+    assert "retrying in 30s" in system_msgs[0].text
+    chat_msgs = [m for m in msgs if m.platform == "youtube"]
+    assert len(chat_msgs) == 1
+    assert chat_msgs[0].author == "alice"
+
+
+async def test_youtube_messages_reconnects_on_400_during_iteration():
+    call_count = 0
+    success_entry = {"message_id": "2", "author": {"name": "bob"}, "message": "Hey", "timestamp": None}
+
+    def open_side_effect(stop):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            def _bad_gen():
+                raise httpx.HTTPStatusError(
+                    "400", request=MagicMock(), response=MagicMock(status_code=400)
+                )
+                yield
+            return _bad_gen()
+        return iter([success_entry])
+
+    provider = YouTubeProvider("somechannel")
+    with patch.object(provider, "_open_chat", side_effect=open_side_effect):
+        with patch("asyncio.sleep", AsyncMock()) as mock_sleep:
+            msgs = [m async for m in provider.messages()]
+
+    assert call_count == 2
+    assert mock_sleep.call_count == 1
+    system_msgs = [m for m in msgs if m.platform == "system"]
+    assert len(system_msgs) == 1
+    assert "retrying in 30s" in system_msgs[0].text
+    assert any(m.author == "bob" for m in msgs if m.platform == "youtube")
+
+
+async def test_youtube_messages_no_reconnect_on_non_400_error():
+    call_count = 0
+
+    def open_side_effect(stop):
+        nonlocal call_count
+        call_count += 1
+        raise httpx.HTTPStatusError("503", request=MagicMock(), response=MagicMock(status_code=503))
+
+    provider = YouTubeProvider("somechannel")
+    with patch.object(provider, "_open_chat", side_effect=open_side_effect):
+        msgs = [m async for m in provider.messages()]
+
+    assert call_count == 1
+    assert len(msgs) == 1
+    assert msgs[0].platform == "system"
+    assert "retrying" not in msgs[0].text
 
 
 # --- integration test: requires env var ---
