@@ -1,4 +1,6 @@
 import asyncio
+import importlib.resources
+import logging
 import sys
 
 from termchat.domain.message import EmojiRun, Message
@@ -7,8 +9,11 @@ from termchat.ui._theme import PLATFORM_ICONS
 from termchat.ui.emoji_render import (
     Protocol,
     detect_image_protocol,
+    render_image,
     render_run,
 )
+
+logger = logging.getLogger(__name__)
 
 # ANSI color applied to the platform icon
 _PLATFORM_ANSI: dict[str, str] = {
@@ -41,6 +46,22 @@ class TerminalUI:
             if self._protocol != "none"
             else None
         )
+        # The YouTube Nerd Font glyph (U+F167) is missing in many fonts, so in
+        # image-capable terminals render the icon as a bundled PNG instead.
+        # Precomputed once; None when unsupported or the asset can't be read.
+        self._youtube_icon: str | None = self._load_youtube_icon()
+
+    def _load_youtube_icon(self) -> str | None:
+        if self._protocol == "none":
+            return None
+        try:
+            data = (
+                importlib.resources.files("termchat.ui").joinpath("assets/youtube.png").read_bytes()
+            )
+        except (FileNotFoundError, OSError) as exc:
+            logger.debug("YouTube icon asset unavailable, using glyph: %s", exc)
+            return None
+        return render_image(data, self._protocol)
 
     async def run(self) -> None:
         try:
@@ -50,10 +71,15 @@ class TerminalUI:
                 # cached — avoids the "first occurrence is :shortcode:" flash.
                 await self._prefetch_emote_images(msg)
                 body = self._render_body(msg)
-                icon = PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
-                p_ansi = _PLATFORM_ANSI.get(msg.platform, "")
                 a_ansi = _AUTHOR_ANSI.get(msg.platform, "")
-                sys.stdout.write(f"\n{p_ansi}{icon}{_RESET} {a_ansi}{msg.author}{_RESET}: {body}")
+                if msg.platform == "youtube" and self._youtube_icon is not None:
+                    # Full-color PNG; no ANSI color wrapper needed.
+                    icon_field = self._youtube_icon
+                else:
+                    icon = PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
+                    p_ansi = _PLATFORM_ANSI.get(msg.platform, "")
+                    icon_field = f"{p_ansi}{icon}{_RESET}"
+                sys.stdout.write(f"\n{icon_field} {a_ansi}{msg.author}{_RESET}: {body}")
                 sys.stdout.flush()
                 self._queue.task_done()
         finally:

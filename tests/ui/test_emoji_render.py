@@ -7,6 +7,7 @@ from termchat.domain.message import EmojiRun, TextRun
 from termchat.infra.emote_cache import EmojiImageCache
 from termchat.ui.emoji_render import (
     detect_image_protocol,
+    render_image,
     render_run,
 )
 
@@ -100,6 +101,25 @@ async def test_render_emoji_iterm2_escape_when_cached():
     assert out.endswith("\x07")
     assert "UE5HQllURVM=" in out
     await cache.aclose()
+
+
+# --- render_image ---
+
+
+def test_render_image_kitty_escape():
+    out = render_image(b"PNGBYTES", "kitty")
+    assert out.startswith("\x1b_G")
+    assert "f=100" in out
+
+
+def test_render_image_iterm2_escape():
+    out = render_image(b"PNGBYTES", "iterm2")
+    assert out.startswith("\x1b]1337;File=")
+    assert out.endswith("\x07")
+
+
+def test_render_image_none_returns_empty():
+    assert render_image(b"PNGBYTES", "none") == ""
 
 
 # --- EmojiImageCache ---

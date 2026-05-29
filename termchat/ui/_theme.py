@@ -7,8 +7,8 @@ icons are identical across backends, so they live here to avoid drift.
 
 # Nerd Font icon per platform ("" twitch, "" youtube).
 PLATFORM_ICONS: dict[str, str] = {
-    "twitch": "",  # Nerd Font nf-fa-twitch
-    "youtube": "",  # Nerd Font nf-fa-youtube
+    "twitch": "",  # Nerd Font nf-fa-twitch
+    "youtube": "",  # Nerd Font nf-fa-youtube
     "fake": "◉",
     "system": "⚙",
 }
