@@ -72,6 +72,19 @@ def render_run(
     return _iterm2_escape(data)
 
 
+def render_image(data: bytes, protocol: Protocol) -> str:
+    """Build an inline-image escape from raw PNG bytes for the given protocol.
+
+    Used for non-emote images (e.g. the YouTube platform icon). Sized to the
+    same 2x1 cells as emotes. Returns "" when the terminal has no image support.
+    """
+    if protocol == "kitty":
+        return _kitty_escape(data)
+    if protocol == "iterm2":
+        return _iterm2_escape(data)
+    return ""
+
+
 def _kitty_escape(data: bytes) -> str:
     # q=2 suppresses Kitty's per-command response acks. Without it Kitty replies
     # via the TTY input channel and the shell echoes the response bytes back to

@@ -940,7 +940,12 @@ def test_poller_handles_missing_liveChatContinuation():
 
 async def test_youtube_messages_reconnects_on_400_at_open():
     call_count = 0
-    success_entry = {"message_id": "1", "author": {"name": "alice"}, "message": "Hi", "timestamp": None}
+    success_entry = {
+        "message_id": "1",
+        "author": {"name": "alice"},
+        "message": "Hi",
+        "timestamp": None,
+    }
 
     def open_side_effect(stop):
         nonlocal call_count
@@ -970,17 +975,24 @@ async def test_youtube_messages_reconnects_on_400_at_open():
 
 async def test_youtube_messages_reconnects_on_400_during_iteration():
     call_count = 0
-    success_entry = {"message_id": "2", "author": {"name": "bob"}, "message": "Hey", "timestamp": None}
+    success_entry = {
+        "message_id": "2",
+        "author": {"name": "bob"},
+        "message": "Hey",
+        "timestamp": None,
+    }
 
     def open_side_effect(stop):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
+
             def _bad_gen():
                 raise httpx.HTTPStatusError(
                     "400", request=MagicMock(), response=MagicMock(status_code=400)
                 )
                 yield
+
             return _bad_gen()
         return iter([success_entry])
 
