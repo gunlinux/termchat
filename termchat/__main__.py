@@ -144,6 +144,8 @@ def main() -> None:
     if not args.twitch and not args.youtube and not args.demo:
         parser.error("at least one of --twitch, --youtube, or --demo is required")
 
+    sys.stdout.write("\033[2J\033[H")
+    sys.stdout.flush()
     try:
         asyncio.run(_run(args))
     except KeyboardInterrupt:
