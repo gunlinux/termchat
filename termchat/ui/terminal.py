@@ -174,10 +174,12 @@ class TerminalUI:
             return body
 
         indent = " " * indent_width
+        continuation_width = self._terminal_cols - indent_width
         result: list[str] = []
         col = 0
         pending_space = 0
         pending_ansi: list[str] = []
+        line_width = available_width
 
         for m in _TOKEN_RE.finditer(body):
             kind = m.lastgroup
@@ -205,12 +207,13 @@ class TerminalUI:
                 pending_space = 0
                 result.extend(pending_ansi)
                 pending_ansi = []
-            elif col + pending_space + w > available_width:
+            elif col + pending_space + w > line_width:
                 result.extend(pending_ansi)
                 pending_ansi = []
                 result.append(f"\n{indent}")
                 col = 0
                 pending_space = 0
+                line_width = continuation_width
             else:
                 result.append(" " * pending_space)
                 col += pending_space

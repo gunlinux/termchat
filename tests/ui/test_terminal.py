@@ -305,9 +305,10 @@ def test_wrap_body_plain_text():
     body = "word1 word2 word3 word4 word5"
     wrapped = ui._wrap_body(body, indent_width=0, available_width=14)
     lines = wrapped.split("\n")
-    # "word1 word2" fits (11 ≤ 14), "word3" triggers wrap with no indent
+    # "word1 word2" fits (11 ≤ 14), "word3" triggers wrap with no indent;
+    # continuation line uses full terminal width so all remaining words fit on one line.
     assert lines[0] == "word1 word2"
-    assert lines[1] == "word3 word4"
+    assert lines[1] == "word3 word4 word5"
 
 
 def test_wrap_body_continuation_uses_full_available_width():
