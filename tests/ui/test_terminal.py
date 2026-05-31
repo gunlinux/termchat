@@ -171,8 +171,8 @@ async def test_terminal_ui_emits_kitty_escape_when_cache_warm():
     assert "\x1b_G" in rendered  # Kitty graphics escape made it to stdout
 
 
-async def test_terminal_ui_youtube_icon_renders_as_image_in_kitty():
-    """In Kitty, the YouTube icon is a bundled PNG image escape, not the glyph."""
+async def test_terminal_ui_youtube_icon_uses_glyph_in_kitty():
+    """YouTube always uses the Nerd Font glyph (U+F16A), even in Kitty."""
     queue: asyncio.Queue[Message] = asyncio.Queue()
     await queue.put(_msg(0, platform="youtube"))
 
@@ -182,14 +182,12 @@ async def test_terminal_ui_youtube_icon_renders_as_image_in_kitty():
         patch("sys.stdout", output),
     ):
         ui = TerminalUI(queue)
-        assert ui._youtube_icon is not None  # asset loaded + escape precomputed
         await _drain(ui, queue)
         if ui._cache is not None:
             await ui._cache.aclose()
 
     rendered = output.getvalue()
-    assert "\x1b_G" in rendered  # Kitty graphics escape for the icon
-    assert "" not in rendered  # the missing-glyph fallback was NOT used
+    assert "" in rendered  # Nerd Font YouTube glyph (U+F16A)
     assert "streamer\x1b[0m: hello 0" in rendered
 
 
@@ -213,8 +211,8 @@ async def test_terminal_ui_twitch_keeps_glyph_in_kitty():
     assert "\x1b_G" not in rendered  # no inline image for the icon
 
 
-async def test_terminal_ui_youtube_icon_falls_back_to_glyph_without_protocol():
-    """Unsupported terminal → no asset loaded, YouTube glyph used."""
+async def test_terminal_ui_youtube_icon_uses_glyph_without_image_protocol():
+    """Unsupported terminal → YouTube glyph used (same as any terminal)."""
     queue: asyncio.Queue[Message] = asyncio.Queue()
     await queue.put(_msg(0, platform="youtube"))
 
@@ -224,11 +222,10 @@ async def test_terminal_ui_youtube_icon_falls_back_to_glyph_without_protocol():
         patch("sys.stdout", output),
     ):
         ui = TerminalUI(queue)
-        assert ui._youtube_icon is None
         await _drain(ui, queue)
 
     rendered = output.getvalue()
-    assert "" in rendered  # glyph fallback
+    assert "" in rendered  # Nerd Font YouTube glyph (U+F16A)
     assert "\x1b_G" not in rendered
 
 

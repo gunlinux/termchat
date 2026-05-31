@@ -1,5 +1,4 @@
 import asyncio
-import importlib.resources
 import logging
 import re
 import shutil
@@ -12,7 +11,6 @@ from termchat.ui._theme import PLATFORM_ICONS
 from termchat.ui.emoji_render import (
     Protocol,
     detect_image_protocol,
-    render_image,
     render_run,
 )
 
@@ -95,24 +93,8 @@ class TerminalUI:
             if self._protocol != "none"
             else None
         )
-        # The YouTube Nerd Font glyph (U+F167) is missing in many fonts, so in
-        # image-capable terminals render the icon as a bundled PNG instead.
-        # Precomputed once; None when unsupported or the asset can't be read.
-        self._youtube_icon: str | None = self._load_youtube_icon()
         # Cached terminal width; updated on SIGWINCH, not per-message.
         self._terminal_cols: int = shutil.get_terminal_size(fallback=(80, 24)).columns
-
-    def _load_youtube_icon(self) -> str | None:
-        if self._protocol == "none":
-            return None
-        try:
-            data = (
-                importlib.resources.files("termchat.ui").joinpath("assets/youtube.png").read_bytes()
-            )
-        except (FileNotFoundError, OSError) as exc:
-            logger.debug("YouTube icon asset unavailable, using glyph: %s", exc)
-            return None
-        return render_image(data, self._protocol)
 
     def _on_sigwinch(self, _signum: int, _frame: object) -> None:
         self._terminal_cols = shutil.get_terminal_size(fallback=(80, 24)).columns
@@ -139,13 +121,9 @@ class TerminalUI:
                         + _RESET
                     )
                 a_ansi = _AUTHOR_ANSI.get(msg.platform, "")
-                if msg.platform == "youtube" and self._youtube_icon is not None:
-                    # Full-color PNG; no ANSI color wrapper needed.
-                    icon_field = self._youtube_icon
-                else:
-                    icon = PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
-                    p_ansi = _PLATFORM_ANSI.get(msg.platform, "")
-                    icon_field = f"{p_ansi}{icon}{_RESET}"
+                icon = PLATFORM_ICONS.get(msg.platform, f"[{msg.platform}]")
+                p_ansi = _PLATFORM_ANSI.get(msg.platform, "")
+                icon_field = f"{p_ansi}{icon}{_RESET}"
                 # First line body width: terminal minus the icon+space+author+": " prefix.
                 prefix_width = len(msg.author) + 5
                 available = self._terminal_cols - prefix_width
