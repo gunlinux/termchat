@@ -4,7 +4,11 @@ from io import StringIO
 from unittest.mock import patch
 
 from termchat.domain.message import EmojiRun, Message, TextRun
-from termchat.ui.terminal import TerminalUI
+from termchat.ui.terminal import _HIDE_CURSOR, TerminalUI
+
+
+def _make_ui() -> TerminalUI:
+    return TerminalUI(asyncio.Queue())
 
 
 def _msg(i: int, platform: str = "twitch") -> Message:
@@ -46,7 +50,9 @@ async def test_terminal_ui_multiple_messages():
         ui = TerminalUI(queue)
         await _drain(ui, queue)
 
-    lines = output.getvalue().strip().splitlines()
+    # The leading hide-cursor escape is written once before any message; the
+    # three messages each occupy their own line.
+    lines = [line for line in output.getvalue().splitlines() if "streamer" in line]
     assert len(lines) == 3
     assert "streamer\x1b[0m: hello 0" in lines[0]
     assert "streamer\x1b[0m: hello 2" in lines[2]
@@ -165,8 +171,8 @@ async def test_terminal_ui_emits_kitty_escape_when_cache_warm():
     assert "\x1b_G" in rendered  # Kitty graphics escape made it to stdout
 
 
-async def test_terminal_ui_youtube_icon_renders_as_image_in_kitty():
-    """In Kitty, the YouTube icon is a bundled PNG image escape, not the glyph."""
+async def test_terminal_ui_youtube_icon_uses_glyph_in_kitty():
+    """YouTube always uses the Nerd Font glyph (U+F16A), even in Kitty."""
     queue: asyncio.Queue[Message] = asyncio.Queue()
     await queue.put(_msg(0, platform="youtube"))
 
@@ -176,14 +182,12 @@ async def test_terminal_ui_youtube_icon_renders_as_image_in_kitty():
         patch("sys.stdout", output),
     ):
         ui = TerminalUI(queue)
-        assert ui._youtube_icon is not None  # asset loaded + escape precomputed
         await _drain(ui, queue)
         if ui._cache is not None:
             await ui._cache.aclose()
 
     rendered = output.getvalue()
-    assert "\x1b_G" in rendered  # Kitty graphics escape for the icon
-    assert "" not in rendered  # the missing-glyph fallback was NOT used
+    assert "" in rendered  # Nerd Font YouTube glyph (U+F16A)
     assert "streamer\x1b[0m: hello 0" in rendered
 
 
@@ -207,8 +211,8 @@ async def test_terminal_ui_twitch_keeps_glyph_in_kitty():
     assert "\x1b_G" not in rendered  # no inline image for the icon
 
 
-async def test_terminal_ui_youtube_icon_falls_back_to_glyph_without_protocol():
-    """Unsupported terminal → no asset loaded, YouTube glyph used."""
+async def test_terminal_ui_youtube_icon_uses_glyph_without_image_protocol():
+    """Unsupported terminal → YouTube glyph used (same as any terminal)."""
     queue: asyncio.Queue[Message] = asyncio.Queue()
     await queue.put(_msg(0, platform="youtube"))
 
@@ -218,11 +222,10 @@ async def test_terminal_ui_youtube_icon_falls_back_to_glyph_without_protocol():
         patch("sys.stdout", output),
     ):
         ui = TerminalUI(queue)
-        assert ui._youtube_icon is None
         await _drain(ui, queue)
 
     rendered = output.getvalue()
-    assert "" in rendered  # glyph fallback
+    assert "" in rendered  # Nerd Font YouTube glyph (U+F16A)
     assert "\x1b_G" not in rendered
 
 
@@ -276,9 +279,9 @@ async def test_terminal_ui_waits_for_emote_fetch_before_printing():
         # Give the loop a few ticks to dequeue + kick off the fetch
         for _ in range(5):
             await asyncio.sleep(0)
-        # Fetch is blocked → nothing printed yet
+        # Fetch is blocked → no message printed yet (only the hide-cursor escape)
         assert transport.calls == 1
-        assert output.getvalue() == ""
+        assert output.getvalue() == _HIDE_CURSOR
 
         # Release the gate; UI should now finish rendering
         transport.gate.set()
@@ -289,3 +292,51 @@ async def test_terminal_ui_waits_for_emote_fetch_before_printing():
     rendered = output.getvalue()
     assert "alice\x1b[0m: hi " in rendered
     assert "\x1b_G" in rendered  # image escape, not shortcode
+
+
+# ── _wrap_body unit tests ──────────────────────────────────────────────────────
+
+
+def test_wrap_body_plain_text():
+    ui = _make_ui()
+    body = "word1 word2 word3 word4 word5"
+    wrapped = ui._wrap_body(body, indent_width=0, available_width=14)
+    lines = wrapped.split("\n")
+    # "word1 word2" fits (11 ≤ 14), "word3" triggers wrap with no indent;
+    # continuation line uses full terminal width so all remaining words fit on one line.
+    assert lines[0] == "word1 word2"
+    assert lines[1] == "word3 word4 word5"
+
+
+def test_wrap_body_continuation_uses_full_available_width():
+    """After wrapping, the continuation line body uses the full available_width."""
+    ui = _make_ui()
+    # available_width=10, indent_width=0 (no gap on left)
+    # "longword"=8 fits; space+"aaa"=12>10 → wrap; on continuation "aaa bbb"=7 ≤ 10 fits
+    body = "longword aaa bbb"
+    wrapped = ui._wrap_body(body, indent_width=0, available_width=10)
+    lines = wrapped.split("\n")
+    assert lines[0] == "longword"
+    assert lines[1] == "aaa bbb"
+
+
+def test_wrap_body_single_chunk_kitty_counted_as_2_cells():
+    """A single-chunk Kitty escape counts as exactly 2 display cells."""
+    ui = _make_ui()
+    img = "\x1b_Gf=100,a=T,t=d,c=2,r=1,q=2;AAAA\x1b\\"
+    # 5 emojis + 4 spaces = 14 cells; with available_width=20 they all fit
+    body = " ".join([img] * 5)
+    wrapped = ui._wrap_body(body, indent_width=5, available_width=20)
+    assert "\n" not in wrapped
+
+
+def test_wrap_body_multi_chunk_kitty_counted_as_2_cells():
+    """Kitty continuation chunks (m=1/m=0) count as 0 cells — only the transmit chunk is 2."""
+    ui = _make_ui()
+    multi = "\x1b_Gf=100,a=T,t=d,c=2,r=1,q=2,m=1;AAAA\x1b\\\x1b_Gm=1;BBBB\x1b\\\x1b_Gm=0;CCCC\x1b\\"
+    # 5 multi-chunk emojis + 4 spaces = 14 cells; should all fit in available_width=20
+    body = " ".join([multi] * 5)
+    wrapped = ui._wrap_body(body, indent_width=5, available_width=20)
+    assert "\n" not in wrapped
+    # Continuation chunks must stay glued to their transmit chunk (no newline between them)
+    assert "\x1b_Gm=1;BBBB\x1b\\\n" not in wrapped
