@@ -26,6 +26,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="YouTube channel handle (resolves to its active live stream)",
     )
     parser.add_argument(
+        "--amqp",
+        metavar="DSN",
+        help="AMQP broker DSN to consume a fanout exchange from (requires --amqp-exchange)",
+    )
+    parser.add_argument(
+        "--amqp-exchange",
+        metavar="NAME",
+        dest="amqp_exchange",
+        help="Fanout exchange name to bind a per-instance temporary queue to",
+    )
+    parser.add_argument(
         "--tui",
         action="store_true",
         help="Use rich textual TUI instead of plain stdout",
@@ -47,7 +58,7 @@ def _print_summary(bus: MessageBus) -> None:
         print("\nMessages received: none")
 
 
-async def _run(args: argparse.Namespace) -> None:
+def _build_providers(args: argparse.Namespace) -> list[Provider]:
     providers: list[Provider] = []
 
     if args.demo:
@@ -76,6 +87,18 @@ async def _run(args: argparse.Namespace) -> None:
         from termchat.providers.youtube import YouTubeProvider
 
         providers.append(YouTubeProvider(args.youtube))
+
+    if args.amqp:
+        # lazy: pulls in the aio-pika stack only when AMQP is requested
+        from termchat.providers.amqp import AmqpProvider
+
+        providers.append(AmqpProvider(args.amqp, args.amqp_exchange))
+
+    return providers
+
+
+async def _run(args: argparse.Namespace) -> None:
+    providers = _build_providers(args)
 
     queue: asyncio.Queue[Message] = asyncio.Queue()
     bus = MessageBus(providers, queue)
@@ -139,6 +162,11 @@ def _apply_config(args: argparse.Namespace) -> None:
         args.twitch = cfg["twitch"]["channel"]
     if not args.youtube and cfg.get("youtube", {}).get("channel"):
         args.youtube = cfg["youtube"]["channel"]
+    amqp_cfg = cfg.get("amqp", {})
+    if not args.amqp and amqp_cfg.get("dsn"):
+        args.amqp = amqp_cfg["dsn"]
+    if not args.amqp_exchange and amqp_cfg.get("exchange"):
+        args.amqp_exchange = amqp_cfg["exchange"]
 
 
 def main() -> None:
@@ -146,8 +174,10 @@ def main() -> None:
     args = parser.parse_args()
     _apply_config(args)
 
-    if not args.twitch and not args.youtube and not args.demo:
-        parser.error("at least one of --twitch, --youtube, or --demo is required")
+    if not args.twitch and not args.youtube and not args.amqp and not args.demo:
+        parser.error("at least one of --twitch, --youtube, --amqp, or --demo is required")
+    if args.amqp and not args.amqp_exchange:
+        parser.error("--amqp requires --amqp-exchange (or [amqp].exchange in the config file)")
 
     sys.stdout.write("\033[2J\033[H")
     sys.stdout.flush()

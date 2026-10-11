@@ -6,7 +6,7 @@ An async, read-only terminal multi-chat aggregator. termchat reads live chat fro
 
 ## Features
 
-- **Multi-platform** — read Twitch and YouTube live chat simultaneously, with an architecture built for adding more providers.
+- **Multi-platform** — read Twitch, YouTube, or an AMQP fanout feed simultaneously, with an architecture built for adding more providers.
 - **Emotes inline** — Twitch (native, BTTV, 7TV) and YouTube custom emotes render as actual images in image-capable terminals (Kitty, iTerm2, WezTerm), with a `:shortcut:` fallback everywhere else.
 - **Read-only** — no credentials required to follow public channels.
 - **Two UIs** — a plain stdout stream (default) or a Textual TUI (`--tui`).
@@ -37,6 +37,9 @@ uv run python -m termchat --youtube <channel>
 # Both at once
 uv run python -m termchat --twitch <channel> --youtube <channel>
 
+# Consume a normalized chat feed from an AMQP fanout exchange
+uv run python -m termchat --amqp <dsn> --amqp-exchange <exchange>
+
 # Textual TUI instead of plain stdout
 uv run python -m termchat --twitch <channel> --tui
 
@@ -44,7 +47,13 @@ uv run python -m termchat --twitch <channel> --tui
 uv run python -m termchat --demo
 ```
 
-At least one of `--twitch`, `--youtube`, or `--demo` is required (or supply channels via config).
+At least one of `--twitch`, `--youtube`, `--amqp`, or `--demo` is required (or supply channels via config).
+
+> The AMQP provider declares its **own** temporary, exclusive, auto-delete queue bound to the
+> exchange for each running instance. A fanout exchange copies every message to every bound queue,
+> so you can run two termchat instances on the same machine and both will see all traffic (rather
+> than competing for messages on a shared queue). Because the queue is temporary, messages
+> published while termchat is not running are not replayed.
 
 > Inline emote images render only in the default stdout UI. TUI mode falls back to `:shortcut:` text.
 
@@ -58,9 +67,17 @@ channel = "somechannel"
 
 [youtube]
 channel = "somechannel"
+
+[amqp]
+dsn = "amqp://user:pass@127.0.0.1:5672/prod"
+exchange = "chat"
 ```
 
 `TWITCH_OAUTH` may be set in the environment to read with credentials; anonymous read works without it.
+
+For the AMQP provider, the DSN and exchange name may come from `--amqp` / `--amqp-exchange` or from
+the `[amqp]` config section (`dsn`, `exchange`). The exchange must be a fanout exchange (as declared
+by the upstream publishers); the provider binds its own temporary queue to it.
 
 ## Development
 
