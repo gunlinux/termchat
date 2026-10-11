@@ -50,8 +50,11 @@ type _Sleeper = Callable[[float], Awaitable[None]]
 def _map_payload(payload: Any) -> Message | None:
     """Map a decoded ``MessageCreate`` payload to a domain ``Message``.
 
-    Returns ``None`` when the payload is malformed (not a dict, missing/invalid
-    fields, or an unknown ``source``) so the caller can ack-and-drop it.
+    The payload's ``author_id`` is required; an optional ``author`` display name
+    (once the consumers publish it) is preferred for rendering and falls back to
+    ``author_id`` when absent or empty. Returns ``None`` when the payload is
+    malformed (not a dict, missing/invalid fields, or an unknown ``source``) so
+    the caller can ack-and-drop it.
     """
     if not isinstance(payload, dict):
         return None
@@ -67,9 +70,11 @@ def _map_payload(payload: Any) -> Message | None:
         return None
     if not isinstance(source, int) or isinstance(source, bool) or source not in _SOURCE_PLATFORMS:
         return None
+    display = payload.get("author")
+    author = display if isinstance(display, str) and display else author_id
     return Message(
         id=message_id,
-        author=author_id,
+        author=author,
         text=body,
         timestamp=datetime.now(UTC),
         platform=_SOURCE_PLATFORMS[source],

@@ -15,8 +15,9 @@ def _wire(
     source: int = 0,
     message_id: str = "m1",
     author_id: str = "a1",
+    author: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "body": body,
         "source": source,
         "message_id": message_id,
@@ -24,6 +25,9 @@ def _wire(
         "stream_id": "s1",
         "channel_id": "c1",
     }
+    if author is not None:
+        payload["author"] = author
+    return payload
 
 
 class _FakeIncoming:
@@ -126,6 +130,27 @@ def test_map_payload_youtube():
     msg = _map_payload(_wire(source=1))
     assert msg is not None
     assert msg.platform == "youtube"
+
+
+def test_map_payload_prefers_author_display_name():
+    msg = _map_payload(_wire(author_id="29122457", author="gunlinux"))
+    assert msg is not None
+    assert msg.author == "gunlinux"
+
+
+@pytest.mark.parametrize("author", ["", None])
+def test_map_payload_falls_back_to_author_id(author):
+    msg = _map_payload(_wire(author_id="29122457", author=author))
+    assert msg is not None
+    assert msg.author == "29122457"
+
+
+def test_map_payload_non_string_author_falls_back_to_author_id():
+    payload = _wire(author_id="29122457")
+    payload["author"] = 42
+    msg = _map_payload(payload)
+    assert msg is not None
+    assert msg.author == "29122457"
 
 
 @pytest.mark.parametrize(

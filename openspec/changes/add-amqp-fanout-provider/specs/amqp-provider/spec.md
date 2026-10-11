@@ -29,16 +29,22 @@ every message instead of competing for messages on a shared queue.
 ### Requirement: Map the wire payload onto a domain message
 
 The provider SHALL decode each message body as JSON conforming to the shared `MessageCreate`
-contract (`body`, `source`, `message_id`, `author_id`, `stream_id`, `channel_id`) and map it onto
-the domain `Message` as follows: `body` → `text`, `source` (`0` = twitch, `1` = youtube) →
-`platform`, `message_id` → `id`, `author_id` → `author`. `timestamp` SHALL be the receive time
-(`datetime.now(UTC)`); `runs` SHALL be empty. Each consumed message SHALL be acknowledged after it
-has been turned into a domain message.
+contract (`body`, `source`, `message_id`, `author_id`, `stream_id`, `channel_id`, plus an optional
+`author` display name) and map it onto the domain `Message` as follows: `body` → `text`, `source`
+(`0` = twitch, `1` = youtube) → `platform`, `message_id` → `id`, and `author` → `author`, preferring
+an optional payload `author` display name when present and non-empty and falling back to
+`author_id` otherwise. `timestamp` SHALL be the receive time (`datetime.now(UTC)`); `runs` SHALL be
+empty. Each consumed message SHALL be acknowledged after it has been turned into a domain message.
 
 #### Scenario: Twitch message is mapped
 - **WHEN** a payload with `source: 0` is consumed
 - **THEN** the yielded `Message` has `platform == "twitch"`, `text` equal to `body`, `id` equal to
-  `message_id`, and `author` equal to `author_id`, and the broker message is acknowledged
+  `message_id`, and `author` equal to `author_id` when no display name is present, and the broker
+  message is acknowledged
+
+#### Scenario: Display name is preferred over the id
+- **WHEN** a payload carries both `author_id` and a non-empty `author`
+- **THEN** the yielded `Message` has `author` equal to the payload `author` display name
 
 #### Scenario: YouTube message is mapped
 - **WHEN** a payload with `source: 1` is consumed
